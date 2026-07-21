@@ -10,34 +10,104 @@ spring:
         locator:
           enabled: true
       routes:
-        - id: admin_route
-          uri: lb://main-service
+        # ===== СНАЧАЛА МАРШРУТЫ ДЛЯ EVENT-SERVICE (БОЛЕЕ СПЕЦИФИЧНЫЕ) =====
+
+        - id: event-service-admin
+          uri: lb://event-service
           predicates:
-            - Path=/admin/**
-        - id: users_route
-          uri: lb://main-service
+            - Path=/admin/events/**
+          filters:
+            - StripPrefix=0
+
+        - id: event-service-private
+          uri: lb://event-service
           predicates:
-            - Path=/users/**
-        - id: events_route
-          uri: lb://main-service
+            - Path=/users/{userId}/events/**
+          filters:
+            - StripPrefix=0
+
+        - id: event-service-public
+          uri: lb://event-service
           predicates:
             - Path=/events/**
-        - id: compilations_route
-          uri: lb://main-service
+          filters:
+            - StripPrefix=0
+
+        - id: category-service-admin
+          uri: lb://event-service
           predicates:
-            - Path=/compilations/**
-        - id: categories_route
-          uri: lb://main-service
+            - Path=/admin/categories/**
+          filters:
+            - StripPrefix=0
+
+        - id: category-service-public
+          uri: lb://event-service
           predicates:
             - Path=/categories/**
-        - id: private_route
-          uri: lb://main-service
+          filters:
+            - StripPrefix=0
+
+        - id: compilation-service-admin
+          uri: lb://event-service
           predicates:
-            - Path=/private/**
-        - id: public_route
-          uri: lb://main-service
+            - Path=/admin/compilations/**
+          filters:
+            - StripPrefix=0
+
+        - id: compilation-service-public
+          uri: lb://event-service
           predicates:
-            - Path=/public/**
+            - Path=/compilations/**
+          filters:
+            - StripPrefix=0
+
+        # ===== ЗАТЕМ МАРШРУТЫ ДЛЯ REQUEST-SERVICE =====
+
+        - id: request-service-all-with-status
+          uri: lb://request-service
+          predicates:
+            - Path=/users/{userId}/requests/allWithStatus/list
+          filters:
+            - StripPrefix=0
+
+        - id: request-service-private-events
+          uri: lb://request-service
+          predicates:
+            - Path=/users/{userId}/events/{eventId}/requests/**
+          filters:
+            - StripPrefix=0
+
+        - id: request-service-private-requests
+          uri: lb://request-service
+          predicates:
+            - Path=/users/{userId}/requests/**
+          filters:
+            - StripPrefix=0
+
+        # ===== МАРШРУТЫ ДЛЯ USER-SERVICE =====
+
+        - id: user-service-admin
+          uri: lb://user-service
+          predicates:
+            - Path=/admin/users/**
+          filters:
+            - StripPrefix=0
+
+        # ===== МАРШРУТЫ ДЛЯ RATING-SERVICE =====
+
+        - id: rating-service-private
+          uri: lb://rating-service
+          predicates:
+            - Path=/private/events/**
+          filters:
+            - StripPrefix=0
+
+        - id: rating-service-public
+          uri: lb://rating-service
+          predicates:
+            - Path=/public/events/**
+          filters:
+            - StripPrefix=0
 
 eureka:
   client:
