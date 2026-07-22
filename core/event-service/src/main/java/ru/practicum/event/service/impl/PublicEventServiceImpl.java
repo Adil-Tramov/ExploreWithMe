@@ -24,6 +24,7 @@ import ru.practicum.stat.dto.EndpointHitDto;
 import ru.practicum.stat.dto.ViewStatsDto;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -183,6 +184,51 @@ public class PublicEventServiceImpl implements PublicEventService {
         }
     }
 
+    private List<Event> filterOnlyAvailable(List<Event> events) {
+        if (events == null || events.isEmpty()) {
+            return events;
+        }
+
+        List<Event> eventsWithoutLimit = new ArrayList<>();
+        List<Event> eventsWithLimit = new ArrayList<>();
+
+        for (Event event : events) {
+            if (event.getParticipantLimit() == 0) {
+                eventsWithoutLimit.add(event);
+            } else {
+                eventsWithLimit.add(event);
+            }
+        }
+
+        if (eventsWithLimit.isEmpty()) {
+            return eventsWithoutLimit;
+        }
+
+        List<Long> eventIdsWithLimit = eventsWithLimit.stream()
+                .map(Event::getId)
+                .toList();
+
+        Map<Long, Long> confirmedRequestsCount = requestServiceFeign
+                .getAllByEventIdInAndStatus(1L, eventIdsWithLimit, RequestStatus.CONFIRMED)
+                .stream()
+                .collect(Collectors.groupingBy(
+                        request -> request.getEvent(),
+                        Collectors.counting()
+                ));
+
+        List<Event> filteredWithLimit = eventsWithLimit.stream()
+                .filter(event -> {
+                    Long confirmed = confirmedRequestsCount.getOrDefault(event.getId(), 0L);
+                    return confirmed < event.getParticipantLimit();
+                })
+                .toList();
+
+        List<Event> result = new ArrayList<>(eventsWithoutLimit);
+        result.addAll(filteredWithLimit);
+
+        log.info("Отфильтровано доступных событий: {} из {}", result.size(), events.size());
+        return result;
+    }
 
     private void validateDateRange(LocalDateTime rangeStart, LocalDateTime rangeEnd) {
         if (rangeStart == null) {
@@ -201,20 +247,6 @@ public class PublicEventServiceImpl implements PublicEventService {
             sortBy = Sort.by(Sort.Direction.ASC, "eventDate");
         }
         return PageRequest.of(from / size, size, sortBy);
-    }
-
-    private List<Event> filterOnlyAvailable(List<Event> events) {
-        return events.stream()
-                .filter(this::isEventAvailable)
-                .collect(Collectors.toList());
-    }
-
-    private boolean isEventAvailable(Event event) {
-        if (event.getParticipantLimit() == 0) {
-            return true;
-        }
-        long confirmed = (long) requestServiceFeign.getAllByEventIdInAndStatus(1L, List.of(event.getId()), RequestStatus.CONFIRMED).size();
-        return confirmed < event.getParticipantLimit();
     }
 
     private List<Event> applySorting(List<Event> events, String sort) {
