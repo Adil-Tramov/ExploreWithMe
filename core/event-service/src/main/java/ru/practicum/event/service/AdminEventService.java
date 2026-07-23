@@ -13,6 +13,4 @@ public interface AdminEventService {
                                LocalDateTime rangeStart, LocalDateTime rangeEnd, int from, int size);
 
     Event updateAdminEvent(Long eventId, UpdateEventAdminRequest dto);
-
-    Long getViewsForEvent(Event event);
 }

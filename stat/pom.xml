@@ -7,6 +7,7 @@
         <groupId>ru.practicum</groupId>
         <artifactId>explore-with-me</artifactId>
         <version>0.0.1-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
     </parent>
 
     <artifactId>stat</artifactId>
@@ -14,8 +15,9 @@
     <packaging>pom</packaging>
 
     <modules>
-        <module>stats-client</module>
-        <module>stats-dto</module>
-        <module>stats-server</module>
+        <module>aggregator</module>
+        <module>analyzer</module>
+        <module>collector</module>
+        <module>serialization</module>
     </modules>
 </project>

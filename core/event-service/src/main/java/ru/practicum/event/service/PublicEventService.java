@@ -7,6 +7,7 @@ import ru.practicum.event.model.Event;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public interface PublicEventService {
 
@@ -15,19 +16,17 @@ public interface PublicEventService {
                                 Boolean onlyAvailable, String sort, int from, int size,
                                 HttpServletRequest request);
 
-    Event getPublicEventById(Long eventId, HttpServletRequest request);
+    Event getPublicEventById(Long eventId, long userId);
 
     Event getPublicEventByIdWithoutHttp(Long eventId);
 
     Long getConfirmedRequestsCount(Long eventId);
 
-    Long getViewsForEvent(Event event);
-
     Map<Long, Long> getConfirmedRequestsCounts(List<Long> eventIds);
-
-    Map<Long, Long> getViewsForEvents(List<Event> events);
 
     UserShortDto getEventInitiator(Event event);
 
     Map<Long, UserShortDto> getEventInitiators(List<Event> events);
+
+    List<Event> findAllEventsByEventId(Set<Long> ids);
 }

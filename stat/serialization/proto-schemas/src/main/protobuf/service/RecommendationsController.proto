@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package stats.service.dashboard;
+
+import "messages/UserRequestProto.proto";
+
+option java_multiple_files = true;
+option java_package = "stats.service.dashboard";
+
+service RecommendationsController {
+    rpc GetRecommendationsForUser(UserPredictionsRequestProto)
+    returns (stream RecommendedEventProto);
+
+    rpc GetSimilarEvents(SimilarEventsRequestProto)
+    returns (stream RecommendedEventProto);
+
+    rpc GetInteractionsCount(InteractionsCountRequestProto)
+    returns (stream RecommendedEventProto);
+}

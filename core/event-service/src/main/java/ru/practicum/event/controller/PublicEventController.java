@@ -9,12 +9,16 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import ru.practicum.dto.eventDto.EventFullDto;
 import ru.practicum.dto.eventDto.EventShortDto;
+import ru.practicum.dto.statServerDto.RecommendedEventDto;
 import ru.practicum.dto.userDto.UserShortDto;
 import ru.practicum.event.mapper.EventMapper;
 import ru.practicum.event.model.Event;
 import ru.practicum.event.service.PublicEventService;
+import ru.practicum.controllerInterface.StatClientController;
+import stats.service.collector.ActionTypeProto;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -27,6 +31,7 @@ import java.util.stream.Collectors;
 public class PublicEventController {
 
     private final PublicEventService publicEventService;
+    private final StatClientController statClient;
 
     @GetMapping
     public List<EventShortDto> getEvents(@RequestParam(required = false) String text,
@@ -52,32 +57,42 @@ public class PublicEventController {
                 events.stream().map(Event::getId).toList()
         );
 
-        Map<Long, Long> viewsMap = publicEventService.getViewsForEvents(events);
-
         Map<Long, UserShortDto> initiatorMap = publicEventService.getEventInitiators(events);
+
+        List<Long> eventIds = events.stream()
+                .map(Event::getId)
+                .toList();
+        List<RecommendedEventDto> rating = statClient.getInteractionsCountAsList(eventIds);
+        Map<Long, Double> ratingForEventMap = new HashMap<>();
+        rating.forEach(recommendedEventProto -> {
+                    ratingForEventMap.putIfAbsent((long) recommendedEventProto.getEventId(), recommendedEventProto.getScore());
+                }
+        );
 
         return events.stream()
                 .map(event -> {
                     Long confirmedRequests = confirmedMap.getOrDefault(event.getId(), 0L);
-                    Long views = viewsMap.getOrDefault(event.getId(), 0L);
                     UserShortDto initiator = initiatorMap.get(event.getInitiatorId());
 
-                    return EventMapper.toShortDto(event, confirmedRequests, views, initiator);
+                    return EventMapper.toShortDto(event, confirmedRequests, ratingForEventMap.get(event.getId()), initiator);
                 })
                 .collect(Collectors.toList());
     }
 
     @GetMapping("/{id}")
-    public EventFullDto getEventById(@PathVariable @Positive Long id, HttpServletRequest request) {
+    public EventFullDto getEventById(@PathVariable @Positive Long id, @RequestHeader("X-EWM-USER-ID") long userId) {
         log.info("GET /events/{} - получение события", id);
 
-        Event event = publicEventService.getPublicEventById(id, request);
+        Event event = publicEventService.getPublicEventById(id, userId);
 
         Long confirmedRequests = publicEventService.getConfirmedRequestsCount(id);
-        Long views = publicEventService.getViewsForEvent(event);
         UserShortDto initiator = publicEventService.getEventInitiator(event);
 
-        return EventMapper.toFullDto(event, confirmedRequests, views, initiator);
+        List<RecommendedEventDto> rating = statClient.getInteractionsCountAsList(List.of(event.getId()));
+
+        statClient.saveStat(userId, event.getId(), ActionTypeProto.ACTION_VIEW);
+
+        return EventMapper.toFullDto(event, confirmedRequests, rating.getFirst().getScore(), initiator);
     }
 
     @GetMapping("/{id}/WithoutHttp")
@@ -87,9 +102,42 @@ public class PublicEventController {
         Event event = publicEventService.getPublicEventByIdWithoutHttp(id);
 
         Long confirmedRequests = publicEventService.getConfirmedRequestsCount(id);
-        Long views = publicEventService.getViewsForEvent(event);
         UserShortDto initiator = publicEventService.getEventInitiator(event);
 
-        return EventMapper.toFullDto(event, confirmedRequests, views, initiator);
+        List<RecommendedEventDto> rating = statClient.getInteractionsCountAsList(List.of(event.getId()));
+
+        return EventMapper.toFullDto(event, confirmedRequests, rating.getFirst().getScore(), initiator);
+    }
+
+    @GetMapping("/recommendations")
+    public List<EventFullDto> getRecommendationForUser(@RequestHeader("X-EWM-USER-ID") long userId) {
+        log.info("GET /events//recommendations - получение списка рекомендованные мероприятий для пользователя с id: {}", userId);
+        List<RecommendedEventDto> recommendationList = statClient.getRecommendationsForUserAsList(userId, 20);
+        Map<Long, Double> recommendationMap = new HashMap<>();
+        recommendationList.forEach(recommendedEventProto -> {
+            recommendationMap.putIfAbsent((long) recommendedEventProto.getEventId(), recommendedEventProto.getScore());
+        });
+        List<Event> events = publicEventService.findAllEventsByEventId(recommendationMap.keySet());
+
+        Map<Long, Long> confirmedMap = publicEventService.getConfirmedRequestsCounts(
+                events.stream().map(Event::getId).toList()
+        );
+        Map<Long, UserShortDto> initiatorMap = publicEventService.getEventInitiators(events);
+
+        return events.stream()
+                .map(event -> {
+                    Long confirmedRequests = confirmedMap.getOrDefault(event.getId(), 0L);
+                    UserShortDto initiator = initiatorMap.get(event.getInitiatorId());
+
+                    return EventMapper.toFullDto(event, confirmedRequests, recommendationMap.get(event.getId()), initiator);
+                })
+                .collect(Collectors.toList());
+    }
+
+    @PutMapping("/{eventId}/like")
+    public void sendLikeForEvent(@PathVariable @Positive Long eventId,
+                                 @RequestHeader("X-EWM-USER-ID") long userId) {
+        log.info("PUT /events/{eventId}/like - Поставить like мероприятию [{}] с id: {}", eventId, userId);
+        statClient.saveStat(userId, eventId, ActionTypeProto.ACTION_LIKE);
     }
 }
