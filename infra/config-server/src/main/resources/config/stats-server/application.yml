@@ -5,7 +5,7 @@ spring:
   application:
     name: stats-server
   datasource:
-    url: jdbc:postgresql://stat-server-db:5432/ewm-stat
+    url: jdbc:postgresql://localhost:5432/ewm-stat
     username: stat
     password: stat
     driver-class-name: org.postgresql.Driver

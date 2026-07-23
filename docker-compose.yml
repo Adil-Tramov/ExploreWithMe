@@ -1,15 +1,66 @@
 services:
-  ewm-main-db:
+  user-service_db:
     image: postgres:16.1
-    container_name: ewm-main-db
+    container_name: user-service_db
     volumes:
-      - ./core/main-service/src/main/resources/schema.sql:/docker-entrypoint-initdb.d/1-schema.sql
+      - ./core/user-service/src/main/resources/schema.sql:/docker-entrypoint-initdb.d/1-schema.sql
+    ports:
+      - "5440:5432"
+    environment:
+      - POSTGRES_DB=user-service
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=user
+    healthcheck:
+      test: pg_isready -q -d $$POSTGRES_DB -U $$POSTGRES_USER
+      timeout: 5s
+      interval: 5s
+      retries: 10
+
+  rating-service_db:
+    image: postgres:16.1
+    container_name: rating-service_db
+    volumes:
+      - ./core/rating-service/src/main/resources/schema.sql:/docker-entrypoint-initdb.d/1-schema.sql
+    ports:
+      - "5450:5432"
+    environment:
+      - POSTGRES_DB=rating-service
+      - POSTGRES_USER=rating
+      - POSTGRES_PASSWORD=rating
+    healthcheck:
+      test: pg_isready -q -d $$POSTGRES_DB -U $$POSTGRES_USER
+      timeout: 5s
+      interval: 5s
+      retries: 10
+
+  request-service_db:
+    image: postgres:16.1
+    container_name: request-service_db
+    volumes:
+      - ./core/request-service/src/main/resources/schema.sql:/docker-entrypoint-initdb.d/1-schema.sql
+    ports:
+      - "5460:5432"
+    environment:
+      - POSTGRES_DB=request-service
+      - POSTGRES_USER=request
+      - POSTGRES_PASSWORD=request
+    healthcheck:
+      test: pg_isready -q -d $$POSTGRES_DB -U $$POSTGRES_USER
+      timeout: 5s
+      interval: 5s
+      retries: 10
+
+  ewm-main_db:
+    image: postgres:16.1
+    container_name: event-service_db
+    volumes:
+      - ./core/event-service/src/main/resources/schema.sql:/docker-entrypoint-initdb.d/1-schema.sql
     ports:
       - "5433:5432"
     environment:
-      - POSTGRES_DB=ewm-main
-      - POSTGRES_USER=main
-      - POSTGRES_PASSWORD=main
+      - POSTGRES_DB=event-service
+      - POSTGRES_USER=event
+      - POSTGRES_PASSWORD=event
     healthcheck:
       test: pg_isready -q -d $$POSTGRES_DB -U $$POSTGRES_USER
       timeout: 5s
