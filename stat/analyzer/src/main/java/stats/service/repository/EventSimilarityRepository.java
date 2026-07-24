@@ -12,9 +12,12 @@ import java.util.Optional;
 @Repository
 public interface EventSimilarityRepository extends JpaRepository<EventSimilarity, Long> {
 
-    List<EventSimilarity> findByEvent1OrEvent2OrderBySimilarityDesc(Long eventId);
+    // Исправленный метод через @Query
+    @Query("SELECT e FROM EventSimilarity e WHERE e.event1 = :eventId OR e.event2 = :eventId ORDER BY e.similarity DESC")
+    List<EventSimilarity> findByEvent1OrEvent2OrderBySimilarityDesc(@Param("eventId") Long eventId);
 
-    List<EventSimilarity> findByEvent1InOrEvent2InOrderBySimilarityDesc(List<Long> eventIds);
+    @Query("SELECT e FROM EventSimilarity e WHERE e.event1 IN :eventIds OR e.event2 IN :eventIds ORDER BY e.similarity DESC")
+    List<EventSimilarity> findByEvent1InOrEvent2InOrderBySimilarityDesc(@Param("eventIds") List<Long> eventIds);
 
     @Query("SELECT e FROM EventSimilarity e WHERE e.event1 IN :eventIds OR e.event2 IN :eventIds")
     List<EventSimilarity> findByEvent1InOrEvent2In(@Param("eventIds") List<Long> eventIds);
