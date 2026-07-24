@@ -17,10 +17,7 @@ import stats.service.model.UserAction;
 import stats.service.repository.UserActionRepository;
 
 import java.time.Duration;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
+import java.util.*;
 
 @Slf4j
 @Component
@@ -64,10 +61,12 @@ public class UserActionProcessor {
     }
 
     private void processRecords(ConsumerRecords<String, UserActionAvro> records) {
-        List<UserAction> newActions = records.stream()
-                .map(ConsumerRecord::value)
-                .map(UserActionMapper::toEntity)
-                .collect(Collectors.toList());
+        List<UserAction> newActions = new ArrayList<>();
+
+        for (ConsumerRecord<String, UserActionAvro> record : records) {
+            UserAction action = UserActionMapper.toEntity(record.value());
+            newActions.add(action);
+        }
 
         if (newActions.isEmpty()) {
             return;
@@ -76,22 +75,20 @@ public class UserActionProcessor {
         List<Long> userIds = newActions.stream()
                 .map(UserAction::getUserId)
                 .distinct()
-                .collect(Collectors.toList());
+                .toList();
 
         List<Long> eventIds = newActions.stream()
                 .map(UserAction::getEventId)
                 .distinct()
-                .collect(Collectors.toList());
+                .toList();
 
         List<UserAction> existingActions = userActionRepository
                 .findAllByUserIdInAndEventIdIn(userIds, eventIds);
 
-        Map<String, UserAction> existingMap = existingActions.stream()
-                .collect(Collectors.toMap(
-                        action -> createKey(action.getUserId(), action.getEventId()),
-                        action -> action,
-                        (existing, replacement) -> existing
-                ));
+        Map<String, UserAction> existingMap = new HashMap<>();
+        for (UserAction action : existingActions) {
+            existingMap.put(createKey(action.getUserId(), action.getEventId()), action);
+        }
 
         for (UserAction newAction : newActions) {
             String key = createKey(newAction.getUserId(), newAction.getEventId());

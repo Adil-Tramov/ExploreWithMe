@@ -18,8 +18,6 @@ public interface UserActionRepository extends JpaRepository<UserAction, Long> {
 
     List<UserAction> findAllByUserId(Long userId);
 
-    List<UserAction> findAllByEventIdIn(List<Long> eventIds);
-
     @Query("SELECT ua FROM UserAction ua WHERE ua.userId IN :userIds AND ua.eventId IN :eventIds")
     List<UserAction> findAllByUserIdInAndEventIdIn(@Param("userIds") List<Long> userIds,
                                                    @Param("eventIds") List<Long> eventIds);

@@ -17,10 +17,7 @@ import stats.service.model.EventSimilarity;
 import stats.service.repository.EventSimilarityRepository;
 
 import java.time.Duration;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
+import java.util.*;
 
 @Slf4j
 @Component
@@ -64,28 +61,31 @@ public class EventSimilarityProcessor {
     }
 
     private void processRecords(ConsumerRecords<String, EventSimilarityAvro> records) {
-        List<EventSimilarity> newSimilarities = records.stream()
-                .map(ConsumerRecord::value)
-                .map(EventSimilarityMapper::toEntity)
-                .collect(Collectors.toList());
+        List<EventSimilarity> newSimilarities = new ArrayList<>();
+
+        for (ConsumerRecord<String, EventSimilarityAvro> record : records) {
+            EventSimilarity similarity = EventSimilarityMapper.toEntity(record.value());
+            newSimilarities.add(similarity);
+        }
 
         if (newSimilarities.isEmpty()) {
             return;
         }
 
-        List<Long> eventIds = newSimilarities.stream()
-                .flatMap(sim -> List.of(sim.getEvent1(), sim.getEvent2()).stream())
-                .distinct()
-                .collect(Collectors.toList());
+        Set<Long> eventIdsSet = new HashSet<>();
+        for (EventSimilarity sim : newSimilarities) {
+            eventIdsSet.add(sim.getEvent1());
+            eventIdsSet.add(sim.getEvent2());
+        }
+        List<Long> eventIds = new ArrayList<>(eventIdsSet);
 
         List<EventSimilarity> existingSimilarities = eventSimilarityRepository
                 .findByEvent1InOrEvent2In(eventIds);
 
-        Map<String, EventSimilarity> existingMap = existingSimilarities.stream()
-                .collect(Collectors.toMap(
-                        sim -> createKey(sim.getEvent1(), sim.getEvent2()),
-                        sim -> sim,
-                        (existing, replacement) -> existing));
+        Map<String, EventSimilarity> existingMap = new HashMap<>();
+        for (EventSimilarity sim : existingSimilarities) {
+            existingMap.put(createKey(sim.getEvent1(), sim.getEvent2()), sim);
+        }
 
         for (EventSimilarity newSimilarity : newSimilarities) {
             String key = createKey(newSimilarity.getEvent1(), newSimilarity.getEvent2());

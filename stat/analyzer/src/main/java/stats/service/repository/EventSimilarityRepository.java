@@ -12,8 +12,6 @@ import java.util.Optional;
 @Repository
 public interface EventSimilarityRepository extends JpaRepository<EventSimilarity, Long> {
 
-    Optional<EventSimilarity> findByEvent1AndEvent2(Long event1, Long event2);
-
     List<EventSimilarity> findByEvent1OrEvent2OrderBySimilarityDesc(Long eventId);
 
     List<EventSimilarity> findByEvent1InOrEvent2InOrderBySimilarityDesc(List<Long> eventIds);

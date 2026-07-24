@@ -4,13 +4,9 @@ import io.grpc.stub.StreamObserver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.devh.boot.grpc.server.service.GrpcService;
-import stats.service.model.EventSimilarity;
-import stats.service.model.UserAction;
-import stats.service.repository.EventSimilarityRepository;
-import stats.service.repository.UserActionRepository;
 import stats.service.service.RecommendationService;
 
-import java.util.*;
+import java.util.List;
 
 @GrpcService
 @Slf4j
@@ -29,7 +25,9 @@ public class RecommendationsController extends RecommendationsControllerGrpc.Rec
             List<RecommendedEventProto> recommendations = recommendationService
                     .getRecommendationsForUser(userId, maxResults);
 
-            recommendations.forEach(responseObserver::onNext);
+            for (RecommendedEventProto recommendation : recommendations) {
+                responseObserver.onNext(recommendation);
+            }
             log.info("Успешно отправлено {} рекомендаций для пользователя ID: {}", recommendations.size(), userId);
             responseObserver.onCompleted();
 
@@ -52,7 +50,9 @@ public class RecommendationsController extends RecommendationsControllerGrpc.Rec
             List<RecommendedEventProto> similarEvents = recommendationService
                     .getSimilarEvents(userId, eventId, maxResults);
 
-            similarEvents.forEach(responseObserver::onNext);
+            for (RecommendedEventProto event : similarEvents) {
+                responseObserver.onNext(event);
+            }
             log.info("Успешно отправлены похожие события для пользователя ID: {}", userId);
             responseObserver.onCompleted();
 
@@ -79,7 +79,9 @@ public class RecommendationsController extends RecommendationsControllerGrpc.Rec
             List<RecommendedEventProto> interactionsCount = recommendationService
                     .getInteractionsCount(eventIdList);
 
-            interactionsCount.forEach(responseObserver::onNext);
+            for (RecommendedEventProto event : interactionsCount) {
+                responseObserver.onNext(event);
+            }
             log.info("Успешно отправлены оценки для {} событий", interactionsCount.size());
             responseObserver.onCompleted();
 

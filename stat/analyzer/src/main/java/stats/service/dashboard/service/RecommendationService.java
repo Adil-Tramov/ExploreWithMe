@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import stats.service.dashboard.RecommendedEventProto;
 import stats.service.model.EventSimilarity;
 import stats.service.model.UserAction;
 import stats.service.repository.EventSimilarityRepository;
@@ -27,7 +28,7 @@ public class RecommendationService {
         List<Long> recentInteractedEvents = userActions.stream()
                 .map(UserAction::getEventId)
                 .limit(maxResults)
-                .toList();
+                .collect(Collectors.toList());
 
         if (recentInteractedEvents.isEmpty()) {
             log.info("У пользователя ID: {} нет взаимодействий с событиями", userId);
@@ -74,7 +75,7 @@ public class RecommendationService {
             }
         }
 
-        Map<Long, Double> userRatings = userActions.stream()
+        Map<Long, Float> userRatings = userActions.stream()
                 .collect(Collectors.toMap(
                         UserAction::getEventId,
                         UserAction::getRating,
@@ -96,7 +97,7 @@ public class RecommendationService {
                         return recentInteractedEvents.contains(neighborId);
                     })
                     .limit(20)
-                    .toList();
+                    .collect(Collectors.toList());
 
             if (nearEvent.isEmpty()) {
                 continue;
@@ -110,7 +111,7 @@ public class RecommendationService {
                         ? neighbor.getEvent2()
                         : neighbor.getEvent1();
 
-                double rating = userRatings.getOrDefault(neighborId, 0.0);
+                float rating = userRatings.getOrDefault(neighborId, 0.0f);
                 weightedSum += neighbor.getSimilarity() * rating;
                 similaritySum += neighbor.getSimilarity();
             }
@@ -133,7 +134,7 @@ public class RecommendationService {
         List<UserAction> userActions = userActionRepository.findAllByUserId(userId);
         List<Long> interactedEvents = userActions.stream()
                 .map(UserAction::getEventId)
-                .toList();
+                .collect(Collectors.toList());
 
         List<EventSimilarity> similarEvents = eventSimilarityRepository
                 .findByEvent1OrEvent2OrderBySimilarityDesc(eventId);
@@ -166,7 +167,7 @@ public class RecommendationService {
 
         List<Long> eventIds = eventIdList.stream()
                 .map(Integer::longValue)
-                .toList();
+                .collect(Collectors.toList());
 
         List<UserAction> usersActions = userActionRepository.findAllByEventIdIn(eventIds);
 
