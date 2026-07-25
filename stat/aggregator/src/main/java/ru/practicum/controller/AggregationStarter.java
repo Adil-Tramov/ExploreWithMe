@@ -112,17 +112,21 @@ public class AggregationStarter {
             double oldMin = Math.min(oldWeight, otherUserWeight);
             double deltaMin = newMin - oldMin;
 
-            double currentMinSum = getMinSum(firstKey, secondKey);
-            double updatedMinSum = currentMinSum + deltaMin;
+            if (deltaMin != 0.0) {
+                double currentMinSum = getMinSum(firstKey, secondKey);
+                double updatedMinSum = currentMinSum + deltaMin;
 
-            minWeightsSums
-                    .computeIfAbsent(firstKey, k -> new HashMap<>())
-                    .put(secondKey, updatedMinSum);
+                minWeightsSums
+                        .computeIfAbsent(firstKey, k -> new HashMap<>())
+                        .put(secondKey, updatedMinSum);
 
-            log.info("Обновлена S_min для пары ({}, {}): {} (otherUserWeight={})",
-                    firstKey, secondKey, updatedMinSum, otherUserWeight);
+                log.info("Обновлена S_min для пары ({}, {}): {} (otherUserWeight={})",
+                        firstKey, secondKey, updatedMinSum, otherUserWeight);
 
-            sendSimilarityEvent(firstKey, secondKey, updatedMinSum, sumFirst, sumSecond);
+                sendSimilarityEvent(firstKey, secondKey, updatedMinSum, sumFirst, sumSecond);
+            } else {
+                log.debug("deltaMin = 0 для пары ({}, {}), сообщение не отправлено", firstKey, secondKey);
+            }
         }
     }
 
