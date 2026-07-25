@@ -56,7 +56,7 @@ public class KafkaClientConfigurationImpl implements ClientConfiguration {
         config.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, kafkaProperties.getConsumer().getKeyDeserializer());
         config.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, kafkaProperties.getConsumer().getValueDeserializer());
         config.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, kafkaProperties.getConsumer().getAutoOffsetReset());
-        config.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
+        config.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, kafkaProperties.getConsumer().getEnableAutoCommit().toString());
         consumer = new KafkaConsumer<>(config);
     }
 
@@ -70,10 +70,14 @@ public class KafkaClientConfigurationImpl implements ClientConfiguration {
         config.put(ProducerConfig.RETRIES_CONFIG, kafkaProperties.getProducer().getRetries());
         config.put(ProducerConfig.LINGER_MS_CONFIG, kafkaProperties.getProducer().getLingerMs());
 
-        config.put(ProducerConfig.MAX_IN_FLIGHT_REQUESTS_PER_CONNECTION, 1);
-        config.put(ProducerConfig.DELIVERY_TIMEOUT_MS_CONFIG, 120000);
-        config.put(ProducerConfig.REQUEST_TIMEOUT_MS_CONFIG, 30000);
-        config.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true);
+        config.put(ProducerConfig.MAX_IN_FLIGHT_REQUESTS_PER_CONNECTION,
+                kafkaProperties.getProducer().getMaxInFlightRequestsPerConnection());
+        config.put(ProducerConfig.DELIVERY_TIMEOUT_MS_CONFIG,
+                kafkaProperties.getProducer().getDeliveryTimeoutMs());
+        config.put(ProducerConfig.REQUEST_TIMEOUT_MS_CONFIG,
+                kafkaProperties.getProducer().getRequestTimeoutMs());
+        config.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG,
+                kafkaProperties.getProducer().getEnableIdempotence().toString());
 
         producer = new KafkaProducer<>(config);
     }

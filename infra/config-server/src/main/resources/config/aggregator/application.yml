@@ -39,8 +39,13 @@ kafka:
     auto-offset-reset: earliest
     key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
     value-deserializer: deserializer.UserActionDeserializer
+    enable-auto-commit: false
 
   producer:
     group-id: event-similarity-producer
     key-serializer: org.apache.kafka.common.serialization.StringSerializer
     value-serializer: serializer.AvroSerializer
+    max-in-flight-requests-per-connection: 1
+    delivery-timeout-ms: 120000
+    request-timeout-ms: 30000
+    enable-idempotence: true
