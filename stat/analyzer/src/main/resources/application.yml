@@ -6,23 +6,58 @@ grpc:
 spring:
   application:
     name: analyzer
-  config:
-    import: "configserver:"
-  cloud:
-    config:
-      discovery:
-        enabled: true
-        serviceId: config-server
-      retry:
-        useRandomPolicy: true
-        max-interval: 6000
+  datasource:
+    url: jdbc:postgresql://localhost:5470/analyzer_db
+    username: analyzer
+    password: analyzer
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: false
+        default_batch_fetch_size: 100
+        order_inserts: true
+        order_updates: true
+        jdbc:
+          batch_size: 50
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.r2dbc.R2dbcAutoConfiguration
+      - org.springframework.boot.autoconfigure.r2dbc.R2dbcTransactionManagerAutoConfiguration
 
 eureka:
   client:
     serviceUrl:
-      defaultZone: http://${eureka.instance.hostname:localhost}:${eureka.instance.port:8761}/eureka/
-  instance:
-    preferIpAddress: true
-    hostname: localhost
-    instance-id: ${spring.application.name}:${random.value}
-    leaseRenewalIntervalInSeconds: 10
+      defaultZone: http://localhost:8761/eureka/
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: gateway,health,info
+  endpoint:
+    gateway:
+      enabled: true
+
+logging:
+  level:
+    stats.service: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level --- [%thread] %logger{36} : %msg%n"
+
+kafka:
+  consumer:
+    bootstrap-servers: localhost:9092
+    auto-offset-reset: earliest
+    key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    value-deserializer: deserializer.UserActionDeserializer
