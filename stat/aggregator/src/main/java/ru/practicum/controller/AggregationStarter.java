@@ -24,11 +24,8 @@ import java.util.Map;
 public class AggregationStarter {
     private final ClientConfiguration client;
     private final KafkaTopicsProperties topicsProperties;
-
     private final Map<Integer, Map<Integer, Double>> eventUserActionMatrix = new HashMap<>();
-
     private final Map<Integer, Double> eventSumValue = new HashMap<>();
-
     private final Map<Integer, Map<Integer, Double>> minWeightsSums = new HashMap<>();
 
     public void start() {
@@ -66,12 +63,11 @@ public class AggregationStarter {
 
         log.info("Обновление: event={}, user={}, weight: {} -> {}", eventId, userId, oldWeight, newWeight);
 
-        updateUserWeight(eventId, userId, newWeight);
-
         double oldEventSum = eventSumValue.getOrDefault(eventId, 0.0);
         double deltaWeight = newWeight - oldWeight;
-        double newEventSum = oldEventSum + deltaWeight;
-        eventSumValue.put(eventId, newEventSum);
+
+        updateUserWeight(eventId, userId, newWeight);
+        eventSumValue.put(eventId, oldEventSum + deltaWeight);
 
         recalculateSimilarities(eventId, userId, oldWeight, newWeight, oldEventSum);
     }
@@ -98,10 +94,11 @@ public class AggregationStarter {
             }
 
             double otherUserWeight = getUserWeight(otherEventId, userId);
-            double otherEventSum = eventSumValue.get(otherEventId);
 
             int firstKey = Math.min(eventId, otherEventId);
             int secondKey = Math.max(eventId, otherEventId);
+
+            double otherEventSum = eventSumValue.get(otherEventId);
 
             double sumFirst = (firstKey == eventId) ? newEventSum : otherEventSum;
             double sumSecond = (secondKey == eventId) ? newEventSum : otherEventSum;
@@ -110,8 +107,8 @@ public class AggregationStarter {
                 continue;
             }
 
-            double oldMin = Math.min(oldWeight, otherUserWeight);
             double newMin = Math.min(newWeight, otherUserWeight);
+            double oldMin = Math.min(oldWeight, otherUserWeight);
             double deltaMin = newMin - oldMin;
 
             double oldMinSum = getMinSum(firstKey, secondKey);
@@ -121,23 +118,22 @@ public class AggregationStarter {
                     .computeIfAbsent(firstKey, k -> new HashMap<>())
                     .put(secondKey, newMinSum);
 
-            double oldSumFirst = (firstKey == eventId) ? oldEventSum : otherEventSum;
-            double oldSumSecond = (secondKey == eventId) ? oldEventSum : otherEventSum;
+            if (otherUserWeight > 0) {
+                double oldSumFirst = (firstKey == eventId) ? oldEventSum : otherEventSum;
+                double oldSumSecond = (secondKey == eventId) ? oldEventSum : otherEventSum;
 
-            double oldSimilarity = 0.0;
-            if (oldSumFirst > 0 && oldSumSecond > 0) {
-                oldSimilarity = oldMinSum / (Math.sqrt(oldSumFirst) * Math.sqrt(oldSumSecond));
-            }
+                double oldSimilarity = 0.0;
+                if (oldSumFirst > 0 && oldSumSecond > 0) {
+                    oldSimilarity = oldMinSum / (Math.sqrt(oldSumFirst) * Math.sqrt(oldSumSecond));
+                }
 
-            double newSimilarity = newMinSum / (Math.sqrt(sumFirst) * Math.sqrt(sumSecond));
+                double newSimilarity = newMinSum / (Math.sqrt(sumFirst) * Math.sqrt(sumSecond));
 
-            if (Math.abs(newSimilarity - oldSimilarity) > 0.0001) {
-                log.info("Схожесть пары ({}, {}) изменилась: {} -> {}",
-                        firstKey, secondKey, oldSimilarity, newSimilarity);
-                sendSimilarityEvent(firstKey, secondKey, newMinSum, sumFirst, sumSecond);
-            } else {
-                log.debug("Схожесть пары ({}, {}) не изменилась: {}",
-                        firstKey, secondKey, oldSimilarity);
+                if (Math.abs(newSimilarity - oldSimilarity) > 0.0001) {
+                    log.info("Схожесть пары ({}, {}) изменилась: {} -> {}",
+                            firstKey, secondKey, oldSimilarity, newSimilarity);
+                    sendSimilarityEvent(firstKey, secondKey, newMinSum, sumFirst, sumSecond);
+                }
             }
         }
     }
