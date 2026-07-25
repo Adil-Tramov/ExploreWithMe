@@ -17,8 +17,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
-import java.util.HashSet;
 
 @Slf4j
 @Component
@@ -26,11 +24,8 @@ import java.util.HashSet;
 public class AggregationStarter {
     private final ClientConfiguration client;
     private final KafkaTopicsProperties topicsProperties;
-
     private final Map<Integer, Map<Integer, Double>> eventUserActionMatrix = new HashMap<>();
-
     private final Map<Integer, Double> eventSumValue = new HashMap<>();
-
     private final Map<Integer, Map<Integer, Double>> minWeightsSums = new HashMap<>();
 
     public void start() {
@@ -47,13 +42,16 @@ public class AggregationStarter {
             }
         } catch (WakeupException ignored) {
         } catch (Exception e) {
-            log.error("Ошибка во время обработки событий", e);
+            log.error("Ошибка во время обработки событий от датчиков", e);
         } finally {
             closeResources();
         }
     }
 
     private void processUserAction(UserActionAvro data) {
+        log.info("------------------------------");
+        log.info("Получены данные: {}", data);
+
         int eventId = data.getEventId();
         int userId = data.getUserId();
 
@@ -61,18 +59,13 @@ public class AggregationStarter {
         double newWeight = computeWeightActionType(data.getActionType());
 
         if (newWeight <= oldWeight) {
+            log.info("Новый вес {} не превышает старый {}, пересчет не требуется", newWeight, oldWeight);
             return;
         }
 
-        log.info("Обновление: event={}, user={}, weight: {} -> {}", eventId, userId, oldWeight, newWeight);
-
         updateUserWeight(eventId, userId, newWeight);
-
-        double oldEventSum = eventSumValue.getOrDefault(eventId, 0.0);
-        double deltaWeight = newWeight - oldWeight;
-        eventSumValue.put(eventId, oldEventSum + deltaWeight);
-
-        recalculateSimilarities(eventId, userId, oldWeight, newWeight, oldEventSum);
+        updateEventSum(eventId, oldWeight, newWeight);
+        recalculateSimilarities(eventId, userId, oldWeight, newWeight);
     }
 
     private double getUserWeight(int eventId, int userId) {
@@ -84,62 +77,57 @@ public class AggregationStarter {
         eventUserActionMatrix
                 .computeIfAbsent(eventId, k -> new HashMap<>())
                 .put(userId, newWeight);
+        log.info("Обновлена матрица действий пользователя для события {}: пользователь {} -> вес {}",
+                eventId, userId, newWeight);
     }
 
-    private void recalculateSimilarities(int eventId, int userId, double oldWeight,
-                                         double newWeight, double oldEventSum) {
-        double newEventSum = oldEventSum + (newWeight - oldWeight);
+    private void updateEventSum(int eventId, double oldWeight, double newWeight) {
+        double deltaEvent = newWeight - oldWeight;
+        double currentEventSum = eventSumValue.getOrDefault(eventId, 0.0);
+        double newEventSum = currentEventSum + deltaEvent;
+        eventSumValue.put(eventId, newEventSum);
+        log.info("Обновлена сумма весов для события {}: {} -> {}",
+                eventId, currentEventSum, newEventSum);
+    }
 
-        Set<String> processedPairs = new HashSet<>();
-
+    private void recalculateSimilarities(int eventId, int userId, double oldWeight, double newWeight) {
         for (int otherEventId : eventSumValue.keySet()) {
             if (otherEventId == eventId) {
                 continue;
             }
 
+            double otherUserWeight = getUserWeight(otherEventId, userId);
+
             int firstKey = Math.min(eventId, otherEventId);
             int secondKey = Math.max(eventId, otherEventId);
-            String pairKey = firstKey + ":" + secondKey;
 
-            if (processedPairs.contains(pairKey)) {
-                continue;
-            }
-            processedPairs.add(pairKey);
-
-            double otherUserWeight = getUserWeight(otherEventId, userId);
-            double otherEventSum = eventSumValue.get(otherEventId);
-
-            double sumFirst = (firstKey == eventId) ? newEventSum : otherEventSum;
-            double sumSecond = (secondKey == eventId) ? newEventSum : otherEventSum;
+            double sumFirst = getEventSum(firstKey);
+            double sumSecond = getEventSum(secondKey);
 
             if (sumFirst <= 0 || sumSecond <= 0) {
                 continue;
             }
 
-            double oldMin = Math.min(oldWeight, otherUserWeight);
             double newMin = Math.min(newWeight, otherUserWeight);
+            double oldMin = Math.min(oldWeight, otherUserWeight);
             double deltaMin = newMin - oldMin;
 
-            double oldMinSum = getMinSum(firstKey, secondKey);
-            double newMinSum = oldMinSum + deltaMin;
-
-            if (Math.abs(newMinSum - oldMinSum) < 0.0001) {
-                double oldSumFirst = (firstKey == eventId) ? oldEventSum : otherEventSum;
-                double oldSumSecond = (secondKey == eventId) ? oldEventSum : otherEventSum;
-
-                if (Math.abs(sumFirst - oldSumFirst) < 0.0001 && Math.abs(sumSecond - oldSumSecond) < 0.0001) {
-                    continue;
-                }
-            }
+            double currentMinSum = getMinSum(firstKey, secondKey);
+            double updatedMinSum = currentMinSum + deltaMin;
 
             minWeightsSums
                     .computeIfAbsent(firstKey, k -> new HashMap<>())
-                    .put(secondKey, newMinSum);
+                    .put(secondKey, updatedMinSum);
 
-            sendSimilarityEvent(firstKey, secondKey, newMinSum, sumFirst, sumSecond);
-            log.info("Отправлена схожесть для пары ({}, {}): {}, S_min={}",
-                    firstKey, secondKey, newMinSum / (Math.sqrt(sumFirst) * Math.sqrt(sumSecond)), newMinSum);
+            log.info("Обновлена S_min для пары ({}, {}): {} (otherUserWeight={})",
+                    firstKey, secondKey, updatedMinSum, otherUserWeight);
+
+            sendSimilarityEvent(firstKey, secondKey, updatedMinSum, sumFirst, sumSecond);
         }
+    }
+
+    private double getEventSum(int eventId) {
+        return eventSumValue.getOrDefault(eventId, 0.0);
     }
 
     private double getMinSum(int firstKey, int secondKey) {
@@ -159,6 +147,7 @@ public class AggregationStarter {
                 .build();
 
         client.getProducer().send(new ProducerRecord<>(topicsProperties.getProducerTopic(), avro));
+        log.info("Отправлено сходство для пары ({}, {}): {}", firstKey, secondKey, similarity);
     }
 
     private double computeWeightActionType(ActionTypeAvro actionType) {
