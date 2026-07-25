@@ -115,14 +115,20 @@ public class AggregationStarter {
             double oldMinValue = Math.min(oldWeight, otherUserWeight);
             double updatedMinSum = currentMinSum + (minValue - oldMinValue);
 
-            minWeightsSums
-                    .computeIfAbsent(firstKey, k -> new HashMap<>())
-                    .put(secondKey, updatedMinSum);
+            // Отправляем событие ТОЛЬКО если S_min изменился
+            if (Double.compare(updatedMinSum, currentMinSum) != 0) {
+                minWeightsSums
+                        .computeIfAbsent(firstKey, k -> new HashMap<>())
+                        .put(secondKey, updatedMinSum);
 
-            log.info("Обновлена S_min для пары ({}, {}): {} -> {}, otherUserWeight={}",
-                    firstKey, secondKey, currentMinSum, updatedMinSum, otherUserWeight);
+                log.info("Обновлена S_min для пары ({}, {}): {} -> {}, otherUserWeight={}",
+                        firstKey, secondKey, currentMinSum, updatedMinSum, otherUserWeight);
 
-            sendSimilarityEvent(firstKey, secondKey, updatedMinSum, sumFirst, sumSecond);
+                sendSimilarityEvent(firstKey, secondKey, updatedMinSum, sumFirst, sumSecond);
+            } else {
+                log.debug("S_min для пары ({}, {}) не изменился (otherUserWeight={}), пропускаем отправку",
+                        firstKey, secondKey, otherUserWeight);
+            }
         }
     }
 
