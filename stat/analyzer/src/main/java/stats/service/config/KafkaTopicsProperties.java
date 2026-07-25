@@ -8,7 +8,7 @@ import org.springframework.stereotype.Component;
 @Component
 @ConfigurationProperties(prefix = "kafka.topics")
 public class KafkaTopicsProperties {
-    private String inputTopic;
-    private String outputTopic;
-    private String analyzerGroupId;
+    private String inputTopic = "stats.events-similarity.v1";
+    private String outputTopic = "stats.events-similarity.v1";
+    private String analyzerGroupId = "similarity-analyzer-group";
 }

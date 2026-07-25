@@ -32,26 +32,26 @@ logging:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level --- [%thread] %logger{36} : %msg%n"
 
 kafka:
-  bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+  bootstrap-servers: localhost:9092
 
   consumer:
-    group-id: ${KAFKA_CONSUMER_GROUP_ID:aggregator-consumer}
-    auto-offset-reset: ${KAFKA_CONSUMER_AUTO_OFFSET_RESET:earliest}
+    group-id: aggregator-consumer
+    auto-offset-reset: earliest
     key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-    value-deserializer: ru.practicum.ewm.stats.avro.UserActionAvroDeserializer
-    enable-auto-commit: ${KAFKA_CONSUMER_ENABLE_AUTO_COMMIT:false}
+    value-deserializer: deserializer.UserActionDeserializer
+    enable-auto-commit: false
 
   producer:
-    group-id: ${KAFKA_PRODUCER_GROUP_ID:event-similarity-producer}
+    group-id: event-similarity-producer
     key-serializer: org.apache.kafka.common.serialization.StringSerializer
-    value-serializer: ru.practicum.ewm.stats.avro.UserActionAvroSerializer
-    acks: ${KAFKA_PRODUCER_ACKS:all}
-    retries: ${KAFKA_PRODUCER_RETRIES:3}
-    linger-ms: ${KAFKA_PRODUCER_LINGER_MS:100}
-    max-in-flight-requests-per-connection: ${KAFKA_PRODUCER_MAX_IN_FLIGHT:1}
-    delivery-timeout-ms: ${KAFKA_PRODUCER_DELIVERY_TIMEOUT:120000}
-    request-timeout-ms: ${KAFKA_PRODUCER_REQUEST_TIMEOUT:30000}
-    enable-idempotence: ${KAFKA_PRODUCER_ENABLE_IDEMPOTENCE:true}
+    value-serializer: serializer.AvroSerializer
+    acks: all
+    retries: 3
+    linger-ms: 100
+    max-in-flight-requests-per-connection: 1
+    delivery-timeout-ms: 120000
+    request-timeout-ms: 30000
+    enable-idempotence: true
 
   topics:
     input-topic: stats.user-actions.v1

@@ -17,16 +17,12 @@ public class UserAction {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
     @Column(name = "user_id", nullable = false)
     private Long userId;
-
     @Column(name = "event_id", nullable = false)
     private Long eventId;
-
     @Column(name = "rating", nullable = false)
     private Float rating;
-
     @Column(name = "ts", nullable = false)
     private Instant ts;
 }

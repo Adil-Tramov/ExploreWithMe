@@ -33,7 +33,6 @@ public class AggregationStarter {
         try {
             String inputTopic = kafkaTopics.getInputTopic();
             client.getConsumer().subscribe(List.of(inputTopic));
-            log.info("Подписались на топик: {}", inputTopic);
 
             while (true) {
                 ConsumerRecords<String, UserActionAvro> records =
@@ -44,7 +43,6 @@ public class AggregationStarter {
                 }
             }
         } catch (WakeupException ignored) {
-            log.info("Получен сигнал WakeupException, завершаем работу...");
         } catch (Exception e) {
             log.error("Ошибка во время обработки событий от датчиков", e);
         } finally {
@@ -112,18 +110,17 @@ public class AggregationStarter {
                 continue;
             }
 
-            double oldMinValue = Math.min(oldWeight, otherUserWeight);
-            double newMinValue = Math.min(newWeight, otherUserWeight);
-
             double currentMinSum = getMinSum(firstKey, secondKey);
-            double updatedMinSum = currentMinSum + (newMinValue - oldMinValue);
+            double minValue = Math.min(newWeight, otherUserWeight);
+            double oldMinValue = Math.min(oldWeight, otherUserWeight);
+            double updatedMinSum = currentMinSum + (minValue - oldMinValue);
 
             minWeightsSums
                     .computeIfAbsent(firstKey, k -> new HashMap<>())
                     .put(secondKey, updatedMinSum);
 
-            log.info("Обновлена S_min для пары ({}, {}): {} (oldMin={}, newMin={}, delta={})",
-                    firstKey, secondKey, updatedMinSum, oldMinValue, newMinValue, newMinValue - oldMinValue);
+            log.info("Обновлена S_min для пары ({}, {}): {} -> {}, otherUserWeight={}",
+                    firstKey, secondKey, currentMinSum, updatedMinSum, otherUserWeight);
 
             sendSimilarityEvent(firstKey, secondKey, updatedMinSum, sumFirst, sumSecond);
         }
@@ -151,7 +148,8 @@ public class AggregationStarter {
 
         String outputTopic = kafkaTopics.getOutputTopic();
         client.getProducer().send(new ProducerRecord<>(outputTopic, avro));
-        log.info("Отправлено сходство для пары ({}, {}): {}", firstKey, secondKey, similarity);
+        log.info("Отправлено сходство для пары ({}, {}): {} (S_min={}, sum1={}, sum2={})",
+                firstKey, secondKey, similarity, minSum, sumFirst, sumSecond);
     }
 
     private double computeWeightActionType(ActionTypeAvro actionType) {

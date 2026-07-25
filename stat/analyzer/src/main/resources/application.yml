@@ -1,24 +1,13 @@
-server:
-  port: 0
+grpc:
+  server:
+    port: 0
+    reflection-service-enabled: true
 
 spring:
   application:
     name: analyzer
   config:
     import: "configserver:"
-  datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/analyzer}
-    username: ${DB_USERNAME:postgres}
-    password: ${DB_PASSWORD:postgres}
-    driver-class-name: org.postgresql.Driver
-  jpa:
-    hibernate:
-      ddl-auto: update
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
-        format_sql: true
-    show-sql: false
   cloud:
     config:
       discovery:
@@ -31,30 +20,30 @@ spring:
 eureka:
   client:
     serviceUrl:
-      defaultZone: http://localhost:8761/eureka/
+      defaultZone: http://${eureka.instance.hostname:localhost}:${eureka.instance.port:8761}/eureka/
   instance:
     preferIpAddress: true
     hostname: localhost
     instance-id: ${spring.application.name}:${random.value}
     leaseRenewalIntervalInSeconds: 10
 
-logging:
-  level:
-    stats.service: DEBUG
-    org.hibernate.SQL: DEBUG
-  pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level --- [%thread] %logger{36} : %msg%n"
-
 kafka:
-  bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+  bootstrap-servers: localhost:9092
+
+  consumer:
+    group-id: similarity-analyzer-group
+    auto-offset-reset: earliest
+    key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    value-deserializer: deserializer.EventSimilarityDeserializer
+    enable-auto-commit: false
 
   topics:
     input-topic: stats.events-similarity.v1
-    output-topic: stats.recommendations.v1
+    output-topic: stats.events-similarity.v1
     analyzer-group-id: similarity-analyzer-group
 
-  consumer:
-    auto-offset-reset: ${KAFKA_CONSUMER_AUTO_OFFSET_RESET:earliest}
-    key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-    value-deserializer: ru.practicum.ewm.stats.avro.EventSimilarityAvroDeserializer
-    enable-auto-commit: ${KAFKA_CONSUMER_ENABLE_AUTO_COMMIT:false}
+logging:
+  level:
+    stats.service: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level --- [%thread] %logger{36} : %msg%n"
