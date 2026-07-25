@@ -110,25 +110,16 @@ public class AggregationStarter {
                 continue;
             }
 
-            double currentMinSum = getMinSum(firstKey, secondKey);
             double minValue = Math.min(newWeight, otherUserWeight);
-            double oldMinValue = Math.min(oldWeight, otherUserWeight);
-            double updatedMinSum = currentMinSum + (minValue - oldMinValue);
+            double currentMinSum = getMinSum(firstKey, secondKey);
+            double updatedMinSum = currentMinSum + (minValue - Math.min(oldWeight, otherUserWeight));
 
-            // Отправляем событие ТОЛЬКО если S_min изменился
-            if (Double.compare(updatedMinSum, currentMinSum) != 0) {
-                minWeightsSums
-                        .computeIfAbsent(firstKey, k -> new HashMap<>())
-                        .put(secondKey, updatedMinSum);
+            minWeightsSums
+                    .computeIfAbsent(firstKey, k -> new HashMap<>())
+                    .put(secondKey, updatedMinSum);
 
-                log.info("Обновлена S_min для пары ({}, {}): {} -> {}, otherUserWeight={}",
-                        firstKey, secondKey, currentMinSum, updatedMinSum, otherUserWeight);
-
-                sendSimilarityEvent(firstKey, secondKey, updatedMinSum, sumFirst, sumSecond);
-            } else {
-                log.debug("S_min для пары ({}, {}) не изменился (otherUserWeight={}), пропускаем отправку",
-                        firstKey, secondKey, otherUserWeight);
-            }
+            log.info("Обновлена S_min для пары ({}, {}): {}", firstKey, secondKey, updatedMinSum);
+            sendSimilarityEvent(firstKey, secondKey, updatedMinSum, sumFirst, sumSecond);
         }
     }
 
@@ -154,8 +145,7 @@ public class AggregationStarter {
 
         String outputTopic = kafkaTopics.getOutputTopic();
         client.getProducer().send(new ProducerRecord<>(outputTopic, avro));
-        log.info("Отправлено сходство для пары ({}, {}): {} (S_min={}, sum1={}, sum2={})",
-                firstKey, secondKey, similarity, minSum, sumFirst, sumSecond);
+        log.info("Отправлено сходство для пары ({}, {}): {}", firstKey, secondKey, similarity);
     }
 
     private double computeWeightActionType(ActionTypeAvro actionType) {
