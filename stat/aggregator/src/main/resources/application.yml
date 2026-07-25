@@ -10,8 +10,14 @@ spring:
     exclude:
       - org.springframework.boot.autoconfigure.r2dbc.R2dbcAutoConfiguration
       - org.springframework.boot.autoconfigure.r2dbc.R2dbcTransactionManagerAutoConfiguration
+  cloud:
+    config:
+      enabled: false
 
 eureka:
+  client:
+    serviceUrl:
+      defaultZone: http://localhost:8761/eureka/
   instance:
     preferIpAddress: true
     hostname: localhost
@@ -35,19 +41,17 @@ logging:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level --- [%thread] %logger{36} : %msg%n"
 
 kafka:
-  bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+  bootstrap-servers: localhost:9092
 
   consumer:
-    group-id: ${KAFKA_CONSUMER_GROUP_ID:aggregator-consumer}
-    auto-offset-reset: ${KAFKA_AUTO_OFFSET_RESET:earliest}
+    group-id: aggregator-consumer
+    auto-offset-reset: earliest
     key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-
     value-deserializer: ru.practicum.serialization.UserActionAvroDeserializer
     enable-auto-commit: false
 
   producer:
     key-serializer: org.apache.kafka.common.serialization.StringSerializer
-
     value-serializer: ru.practicum.serialization.SpecificRecordSerializer
     acks: all
     retries: 3
@@ -58,5 +62,5 @@ kafka:
     enable-idempotence: true
 
   topics:
-    input-topic: ${KAFKA_INPUT_TOPIC:stats.user-actions.v1}
-    output-topic: ${KAFKA_OUTPUT_TOPIC:stats.events-similarity.v1}
+    input-topic: stats.user-actions.v1
+    output-topic: stats.events-similarity.v1
