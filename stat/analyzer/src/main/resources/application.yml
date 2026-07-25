@@ -76,3 +76,6 @@ kafka:
     auto-offset-reset: earliest
     key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
     value-deserializer: deserializer.UserActionDeserializer
+    group-id-similarity: similarity-analyzer-group
+  topics:
+    event-similarity: stats.events-similarity.v1
