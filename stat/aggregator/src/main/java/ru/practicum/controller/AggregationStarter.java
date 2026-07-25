@@ -33,6 +33,7 @@ public class AggregationStarter {
         try {
             String inputTopic = kafkaTopics.getInputTopic();
             client.getConsumer().subscribe(List.of(inputTopic));
+            log.info("Подписались на топик: {}", inputTopic);
 
             while (true) {
                 ConsumerRecords<String, UserActionAvro> records =
@@ -43,6 +44,7 @@ public class AggregationStarter {
                 }
             }
         } catch (WakeupException ignored) {
+            log.info("Получен сигнал WakeupException, завершаем работу...");
         } catch (Exception e) {
             log.error("Ошибка во время обработки событий от датчиков", e);
         } finally {
@@ -110,15 +112,19 @@ public class AggregationStarter {
                 continue;
             }
 
-            double minValue = Math.min(newWeight, otherUserWeight);
+            double oldMinValue = Math.min(oldWeight, otherUserWeight);
+            double newMinValue = Math.min(newWeight, otherUserWeight);
+
             double currentMinSum = getMinSum(firstKey, secondKey);
-            double updatedMinSum = currentMinSum + (minValue - Math.min(oldWeight, otherUserWeight));
+            double updatedMinSum = currentMinSum + (newMinValue - oldMinValue);
 
             minWeightsSums
                     .computeIfAbsent(firstKey, k -> new HashMap<>())
                     .put(secondKey, updatedMinSum);
 
-            log.info("Обновлена S_min для пары ({}, {}): {}", firstKey, secondKey, updatedMinSum);
+            log.info("Обновлена S_min для пары ({}, {}): {} (oldMin={}, newMin={}, delta={})",
+                    firstKey, secondKey, updatedMinSum, oldMinValue, newMinValue, newMinValue - oldMinValue);
+
             sendSimilarityEvent(firstKey, secondKey, updatedMinSum, sumFirst, sumSecond);
         }
     }

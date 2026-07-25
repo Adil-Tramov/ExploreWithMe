@@ -91,8 +91,7 @@ public class RecommendationsController extends RecommendationsControllerGrpc.Rec
             responseObserver.onError(
                     io.grpc.Status.INTERNAL
                             .withDescription("Ошибка при расчете взаимодействий: " + e.getMessage())
-                            .asRuntimeException()
-            );
+                            .asRuntimeException());
         }
     }
 }

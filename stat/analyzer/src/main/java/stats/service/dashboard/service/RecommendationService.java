@@ -2,6 +2,8 @@ package stats.service.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import stats.service.dashboard.RecommendedEventProto;
@@ -20,53 +22,60 @@ import java.util.stream.Collectors;
 public class RecommendationService {
     private final EventSimilarityRepository eventSimilarityRepository;
     private final UserActionRepository userActionRepository;
-
+    
     public List<RecommendedEventProto> getRecommendationsForUser(Long userId, int maxResults) {
+        log.debug("Получение рекомендаций для пользователя ID: {}, maxResults: {}", userId, maxResults);
+
         List<UserAction> userActions = userActionRepository
                 .findAllByUserIdOrderByTsDesc(userId);
+
+        if (userActions.isEmpty()) {
+            log.info("У пользователя ID: {} нет взаимодействий с событиями", userId);
+            return Collections.emptyList();
+        }
 
         List<Long> recentInteractedEvents = userActions.stream()
                 .map(UserAction::getEventId)
                 .limit(maxResults)
                 .collect(Collectors.toList());
 
-        if (recentInteractedEvents.isEmpty()) {
-            log.info("У пользователя ID: {} нет взаимодействий с событиями", userId);
-            return Collections.emptyList();
-        }
-
         List<EventSimilarity> similarEvents = eventSimilarityRepository
                 .findByEvent1InOrEvent2InOrderBySimilarityDesc(recentInteractedEvents);
 
-        Map<Long, Float> recommendedEvents = new LinkedHashMap<>();
+        if (similarEvents.isEmpty()) {
+            log.info("Нет похожих событий для пользователя {}", userId);
+            return Collections.emptyList();
+        }
 
-        for (EventSimilarity event : similarEvents) {
-            Long event1 = event.getEvent1();
-            Long event2 = event.getEvent2();
-            Float score = event.getSimilarity();
+        Map<Long, Float> candidateScores = new HashMap<>();
+        Set<Long> interactedSet = new HashSet<>(recentInteractedEvents);
 
-            boolean hasEvent1 = recentInteractedEvents.contains(event1);
-            boolean hasEvent2 = recentInteractedEvents.contains(event2);
+        for (EventSimilarity sim : similarEvents) {
+            Long event1 = sim.getEvent1();
+            Long event2 = sim.getEvent2();
+
+            boolean hasEvent1 = interactedSet.contains(event1);
+            boolean hasEvent2 = interactedSet.contains(event2);
 
             if (hasEvent1 != hasEvent2) {
-                Long candidateEventId = hasEvent1 ? event2 : event1;
-                if (!recentInteractedEvents.contains(candidateEventId)) {
-                    recommendedEvents.putIfAbsent(candidateEventId, score);
+                Long candidateId = hasEvent1 ? event2 : event1;
+                if (!interactedSet.contains(candidateId)) {
+                    candidateScores.putIfAbsent(candidateId, sim.getSimilarity());
                 }
             }
         }
 
-        if (recommendedEvents.isEmpty()) {
+        if (candidateScores.isEmpty()) {
             return Collections.emptyList();
         }
 
-        List<Long> candidateEventIds = new ArrayList<>(recommendedEvents.keySet());
+        List<Long> candidateIds = new ArrayList<>(candidateScores.keySet());
         List<EventSimilarity> allSimilarities = eventSimilarityRepository
-                .findByEvent1InOrEvent2InOrderBySimilarityDesc(candidateEventIds);
+                .findByEvent1InOrEvent2InOrderBySimilarityDesc(candidateIds);
 
         Map<Long, List<EventSimilarity>> similaritiesByCandidate = new HashMap<>();
         for (EventSimilarity sim : allSimilarities) {
-            Long candidateId = candidateEventIds.stream()
+            Long candidateId = candidateIds.stream()
                     .filter(id -> sim.getEvent1().equals(id) || sim.getEvent2().equals(id))
                     .findFirst()
                     .orElse(null);
@@ -84,17 +93,17 @@ public class RecommendationService {
 
         List<RecommendedEventProto> result = new ArrayList<>();
 
-        for (Map.Entry<Long, Float> entry : recommendedEvents.entrySet()) {
-            Long candidateEventId = entry.getKey();
+        for (Map.Entry<Long, Float> entry : candidateScores.entrySet()) {
+            Long candidateId = entry.getKey();
 
             List<EventSimilarity> nearEvent = similaritiesByCandidate
-                    .getOrDefault(candidateEventId, Collections.emptyList())
+                    .getOrDefault(candidateId, Collections.emptyList())
                     .stream()
                     .filter(sim -> {
-                        Long neighborId = sim.getEvent1().equals(candidateEventId)
+                        Long neighborId = sim.getEvent1().equals(candidateId)
                                 ? sim.getEvent2()
                                 : sim.getEvent1();
-                        return recentInteractedEvents.contains(neighborId);
+                        return interactedSet.contains(neighborId);
                     })
                     .limit(20)
                     .collect(Collectors.toList());
@@ -107,11 +116,11 @@ public class RecommendationService {
             double similaritySum = 0.0;
 
             for (EventSimilarity neighbor : nearEvent) {
-                Long neighborId = neighbor.getEvent1().equals(candidateEventId)
+                Long neighborId = neighbor.getEvent1().equals(candidateId)
                         ? neighbor.getEvent2()
                         : neighbor.getEvent1();
 
-                float rating = userRatings.getOrDefault(neighborId, 0.0f);
+                Float rating = userRatings.getOrDefault(neighborId, 0.0f);
                 weightedSum += neighbor.getSimilarity() * rating;
                 similaritySum += neighbor.getSimilarity();
             }
@@ -119,7 +128,7 @@ public class RecommendationService {
             double predictedScore = similaritySum > 0 ? weightedSum / similaritySum : 0.0;
 
             result.add(RecommendedEventProto.newBuilder()
-                    .setEventId(Math.toIntExact(candidateEventId))
+                    .setEventId(candidateId.intValue())
                     .setScore(predictedScore)
                     .build());
         }
@@ -131,32 +140,37 @@ public class RecommendationService {
     }
 
     public List<RecommendedEventProto> getSimilarEvents(Long userId, Long eventId, int maxResults) {
-        List<UserAction> userActions = userActionRepository.findAllByUserId(userId);
-        List<Long> interactedEvents = userActions.stream()
-                .map(UserAction::getEventId)
-                .collect(Collectors.toList());
+        log.debug("Получение похожих событий для eventId: {}, maxResults: {}", eventId, maxResults);
 
+        Pageable pageable = PageRequest.of(0, maxResults);
         List<EventSimilarity> similarEvents = eventSimilarityRepository
-                .findByEvent1OrEvent2OrderBySimilarityDesc(eventId);
+                .findByEvent1OrEvent2OrderBySimilarityDesc(eventId, pageable);
+
+        if (similarEvents.isEmpty()) {
+            log.info("Похожие события для eventId {} не найдены", eventId);
+            return Collections.emptyList();
+        }
+
+        List<UserAction> userActions = userActionRepository.findAllByUserId(userId);
+        Set<Long> interactedEvents = userActions.stream()
+                .map(UserAction::getEventId)
+                .collect(Collectors.toSet());
 
         List<RecommendedEventProto> result = new ArrayList<>();
-        for (EventSimilarity event : similarEvents) {
-            Long similarEventId = event.getEvent1().equals(eventId)
-                    ? event.getEvent2()
-                    : event.getEvent1();
+        for (EventSimilarity sim : similarEvents) {
+            Long similarEventId = sim.getEvent1().equals(eventId)
+                    ? sim.getEvent2()
+                    : sim.getEvent1();
 
             if (!interactedEvents.contains(similarEventId)) {
                 result.add(RecommendedEventProto.newBuilder()
-                        .setEventId(Math.toIntExact(similarEventId))
-                        .setScore(event.getSimilarity())
+                        .setEventId(similarEventId.intValue())
+                        .setScore(sim.getSimilarity())
                         .build());
-
-                if (result.size() >= maxResults) {
-                    break;
-                }
             }
         }
 
+        log.info("Найдено {} похожих событий для eventId {}", result.size(), eventId);
         return result;
     }
 
@@ -165,30 +179,27 @@ public class RecommendationService {
             return Collections.emptyList();
         }
 
-        List<Long> eventIds = eventIdList.stream()
-                .map(Integer::longValue)
-                .collect(Collectors.toList());
+        log.debug("Получение количества взаимодействий для {} событий", eventIdList.size());
 
-        List<UserAction> usersActions = userActionRepository.findAllByEventIdIn(eventIds);
+        List<Object[]> results = userActionRepository.getInteractionsCountForEvents(eventIdList);
 
-        Map<Long, Float> eventScore = new HashMap<>();
-        for (Integer eventId : eventIdList) {
-            eventScore.put(eventId.longValue(), 0.0f);
+        if (results.isEmpty()) {
+            log.info("Взаимодействия для событий {} не найдены", eventIdList);
+            return Collections.emptyList();
         }
 
-        usersActions.stream()
-                .filter(action -> action.getRating() != null)
-                .forEach(action -> {
-                    Long eventId = action.getEventId();
-                    Float rating = action.getRating();
-                    eventScore.merge(eventId, rating, Float::sum);
-                });
-
-        return eventScore.entrySet().stream()
-                .map(entry -> RecommendedEventProto.newBuilder()
-                        .setEventId(entry.getKey().intValue())
-                        .setScore(entry.getValue())
-                        .build())
+        List<RecommendedEventProto> result = results.stream()
+                .map(data -> {
+                    Integer eventId = (Integer) data[0];
+                    Double totalScore = (Double) data[1];
+                    return RecommendedEventProto.newBuilder()
+                            .setEventId(eventId)
+                            .setScore(totalScore)
+                            .build();
+                })
                 .collect(Collectors.toList());
+
+        log.info("Найдены взаимодействия для {} событий", result.size());
+        return result;
     }
 }

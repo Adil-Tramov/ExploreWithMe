@@ -31,10 +31,20 @@ eureka:
     leaseRenewalIntervalInSeconds: 10
 
 kafka:
-  bootstrap-servers: localhost:9092
+  bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+
+  producer:
+    key-serializer: org.apache.kafka.common.serialization.StringSerializer
+    value-serializer: ru.practicum.ewm.stats.avro.UserActionAvroSerializer
+    acks: ${KAFKA_PRODUCER_ACKS:all}
+    retries: ${KAFKA_PRODUCER_RETRIES:3}
+    linger-ms: ${KAFKA_PRODUCER_LINGER_MS:100}
+    max-in-flight-requests-per-connection: ${KAFKA_PRODUCER_MAX_IN_FLIGHT:1}
+    delivery-timeout-ms: ${KAFKA_PRODUCER_DELIVERY_TIMEOUT:120000}
+    request-timeout-ms: ${KAFKA_PRODUCER_REQUEST_TIMEOUT:30000}
+    enable-idempotence: ${KAFKA_PRODUCER_ENABLE_IDEMPOTENCE:true}
 
   topics:
-    input-topic: stats.user-actions.v1
     output-topic: stats.user-actions.v1
 
 logging:

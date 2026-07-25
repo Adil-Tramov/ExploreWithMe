@@ -24,4 +24,10 @@ public interface UserActionRepository extends JpaRepository<UserAction, Long> {
 
     @Query("SELECT ua FROM UserAction ua WHERE ua.eventId IN :eventIds")
     List<UserAction> findAllByEventIdIn(@Param("eventIds") List<Long> eventIds);
+
+    @Query("SELECT ua.eventId, SUM(ua.rating) as totalScore " +
+            "FROM UserAction ua " +
+            "WHERE ua.eventId IN :eventIds " +
+            "GROUP BY ua.eventId")
+    List<Object[]> getInteractionsCountForEvents(@Param("eventIds") List<Integer> eventIds);
 }

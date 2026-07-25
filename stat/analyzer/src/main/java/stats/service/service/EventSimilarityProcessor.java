@@ -2,6 +2,7 @@ package stats.service.service;
 
 import deserializer.EventSimilarityDeserializer;
 import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.Consumer;
@@ -9,6 +10,7 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.common.errors.WakeupException;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 import ru.practicum.ewm.stats.avro.EventSimilarityAvro;
 import stats.service.client.impl.KafkaClientConfigurationImpl;
 import stats.service.config.KafkaTopicsProperties;
@@ -32,12 +34,20 @@ public class EventSimilarityProcessor {
     public void init() {
         String groupId = kafkaTopics.getAnalyzerGroupId();
         this.consumer = client.initConsumer(groupId, EventSimilarityDeserializer.class);
+        log.info("Инициализирован консьюмер для топика: {}, groupId: {}",
+                kafkaTopics.getInputTopic(), groupId);
+    }
+
+    @PreDestroy
+    public void destroy() {
+        closeConsumer();
     }
 
     public void start() {
         try {
             String inputTopic = kafkaTopics.getInputTopic();
             consumer.subscribe(Collections.singletonList(inputTopic));
+            log.info("Подписались на топик: {}", inputTopic);
 
             while (true) {
                 ConsumerRecords<String, EventSimilarityAvro> records =
@@ -50,9 +60,10 @@ public class EventSimilarityProcessor {
                 processRecords(records);
 
                 consumer.commitSync();
-                log.debug("Коммит offset выполнен успешно");
+                log.debug("Коммит offset выполнен успешно для {} записей", records.count());
             }
         } catch (WakeupException ignored) {
+            log.info("Получен сигнал WakeupException, завершаем работу...");
         } catch (Exception e) {
             log.error("Ошибка во время получения данных", e);
         } finally {
@@ -60,9 +71,13 @@ public class EventSimilarityProcessor {
         }
     }
 
-    private void processRecords(ConsumerRecords<String, EventSimilarityAvro> records) {
-        List<EventSimilarity> newSimilarities = new ArrayList<>();
+    @Transactional
+    protected void processRecords(ConsumerRecords<String, EventSimilarityAvro> records) {
+        if (records.isEmpty()) {
+            return;
+        }
 
+        List<EventSimilarity> newSimilarities = new ArrayList<>();
         for (ConsumerRecord<String, EventSimilarityAvro> record : records) {
             EventSimilarity similarity = EventSimilarityMapper.toEntity(record.value());
             newSimilarities.add(similarity);
@@ -87,6 +102,7 @@ public class EventSimilarityProcessor {
             existingMap.put(createKey(sim.getEvent1(), sim.getEvent2()), sim);
         }
 
+        List<EventSimilarity> toSave = new ArrayList<>();
         for (EventSimilarity newSimilarity : newSimilarities) {
             String key = createKey(newSimilarity.getEvent1(), newSimilarity.getEvent2());
             EventSimilarity existing = existingMap.get(key);
@@ -94,18 +110,23 @@ public class EventSimilarityProcessor {
             if (existing != null) {
                 existing.setSimilarity(newSimilarity.getSimilarity());
                 existing.setTs(newSimilarity.getTs());
-                eventSimilarityRepository.save(existing);
+                toSave.add(existing);
                 log.debug("Обновлена запись для event1={}, event2={}, similarity={}",
                         newSimilarity.getEvent1(),
                         newSimilarity.getEvent2(),
                         newSimilarity.getSimilarity());
             } else {
-                eventSimilarityRepository.save(newSimilarity);
+                toSave.add(newSimilarity);
                 log.debug("Сохранена новая запись для event1={}, event2={}, similarity={}",
                         newSimilarity.getEvent1(),
                         newSimilarity.getEvent2(),
                         newSimilarity.getSimilarity());
             }
+        }
+
+        if (!toSave.isEmpty()) {
+            eventSimilarityRepository.saveAll(toSave);
+            log.info("Сохранено/обновлено {} записей", toSave.size());
         }
     }
 

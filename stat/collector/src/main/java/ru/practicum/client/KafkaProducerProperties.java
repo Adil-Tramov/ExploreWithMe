@@ -8,10 +8,14 @@ import org.springframework.stereotype.Component;
 @Component
 @ConfigurationProperties(prefix = "kafka.producer")
 public class KafkaProducerProperties {
-    private String bootstrapServers = "localhost:9092";
-    private String keySerializer = "org.apache.kafka.common.serialization.StringSerializer";
-    private String valueSerializer = "serializer.AvroSerializer";
-    private String acks = "all";
-    private Integer retries = 3;
-    private Integer lingerMs = 100;
+    private String bootstrapServers;
+    private String keySerializer;
+    private String valueSerializer;
+    private String acks;
+    private Integer retries;
+    private Integer lingerMs;
+    private Integer maxInFlightRequestsPerConnection;
+    private Integer deliveryTimeoutMs;
+    private Integer requestTimeoutMs;
+    private Boolean enableIdempotence;
 }

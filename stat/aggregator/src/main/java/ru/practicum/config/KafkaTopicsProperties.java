@@ -8,6 +8,6 @@ import org.springframework.stereotype.Component;
 @Component
 @ConfigurationProperties(prefix = "kafka.topics")
 public class KafkaTopicsProperties {
-    private String inputTopic = "stats.user-actions.v1";
-    private String outputTopic = "stats.events-similarity.v1";
+    private String inputTopic;
+    private String outputTopic;
 }
