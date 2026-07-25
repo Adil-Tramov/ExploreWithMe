@@ -42,7 +42,7 @@ public class AggregationStarter {
             }
         } catch (WakeupException ignored) {
         } catch (Exception e) {
-            log.error("Ошибка во время обработки событий от датчиков", e);
+            log.error("Ошибка во время обработки событий", e);
         } finally {
             closeResources();
         }
@@ -63,8 +63,12 @@ public class AggregationStarter {
             return;
         }
 
+        log.info("Обновление веса пользователя {} для события {}: {} -> {}", userId, eventId, oldWeight, newWeight);
+
         updateUserWeight(eventId, userId, newWeight);
+
         updateEventSum(eventId, oldWeight, newWeight);
+
         recalculateSimilarities(eventId, userId, oldWeight, newWeight);
     }
 
@@ -77,22 +81,16 @@ public class AggregationStarter {
         eventUserActionMatrix
                 .computeIfAbsent(eventId, k -> new HashMap<>())
                 .put(userId, newWeight);
-        log.info("Обновлена матрица действий пользователя для события {}: пользователь {} -> вес {}",
-                eventId, userId, newWeight);
     }
 
     private void updateEventSum(int eventId, double oldWeight, double newWeight) {
-        double deltaEvent = newWeight - oldWeight;
-        double currentEventSum = eventSumValue.getOrDefault(eventId, 0.0);
-        double newEventSum = currentEventSum + deltaEvent;
-        eventSumValue.put(eventId, newEventSum);
-        log.info("Обновлена сумма весов для события {}: {} -> {}",
-                eventId, currentEventSum, newEventSum);
+        double currentSum = eventSumValue.getOrDefault(eventId, 0.0);
+        double newSum = currentSum + (newWeight - oldWeight);
+        eventSumValue.put(eventId, newSum);
+        log.info("Сумма весов для события {}: {} -> {}", eventId, currentSum, newSum);
     }
 
     private void recalculateSimilarities(int eventId, int userId, double oldWeight, double newWeight) {
-        double deltaWeight = newWeight - oldWeight;
-
         for (int otherEventId : eventSumValue.keySet()) {
             if (otherEventId == eventId) {
                 continue;
@@ -103,38 +101,30 @@ public class AggregationStarter {
             int firstKey = Math.min(eventId, otherEventId);
             int secondKey = Math.max(eventId, otherEventId);
 
-            double oldSumFirst = getEventSum(firstKey) - (firstKey == eventId ? deltaWeight : 0);
-            double oldSumSecond = getEventSum(secondKey) - (secondKey == eventId ? deltaWeight : 0);
+            double sumFirst = getEventSum(firstKey);
+            double sumSecond = getEventSum(secondKey);
 
-            double newSumFirst = getEventSum(firstKey);
-            double newSumSecond = getEventSum(secondKey);
-
-            if (newSumFirst <= 0 || newSumSecond <= 0 || oldSumFirst <= 0 || oldSumSecond <= 0) {
+            if (sumFirst <= 0 || sumSecond <= 0) {
                 continue;
             }
 
-            double oldMin = Math.min(oldWeight, otherUserWeight);
             double newMin = Math.min(newWeight, otherUserWeight);
+            double oldMin = Math.min(oldWeight, otherUserWeight);
             double deltaMin = newMin - oldMin;
 
             double oldMinSum = getMinSum(firstKey, secondKey);
             double newMinSum = oldMinSum + deltaMin;
 
-            double oldSimilarity = oldMinSum / (Math.sqrt(oldSumFirst) * Math.sqrt(oldSumSecond));
-            double newSimilarity = newMinSum / (Math.sqrt(newSumFirst) * Math.sqrt(newSumSecond));
-
             minWeightsSums
                     .computeIfAbsent(firstKey, k -> new HashMap<>())
                     .put(secondKey, newMinSum);
 
-            if (Math.abs(newSimilarity - oldSimilarity) > 0.0001) {
-                log.info("Схожесть пары ({}, {}) изменилась: {} -> {} (userWeight: {} -> {}, otherUserWeight: {})",
-                        firstKey, secondKey, oldSimilarity, newSimilarity, oldWeight, newWeight, otherUserWeight);
-                sendSimilarityEvent(firstKey, secondKey, newMinSum, newSumFirst, newSumSecond);
-            } else {
-                log.debug("Схожесть для пары ({}, {}) не изменилась: {} -> {}",
-                        firstKey, secondKey, oldSimilarity, newSimilarity);
-            }
+            double similarity = newMinSum / (Math.sqrt(sumFirst) * Math.sqrt(sumSecond));
+
+            sendSimilarityEvent(firstKey, secondKey, newMinSum, sumFirst, sumSecond);
+
+            log.info("Обновлена схожесть для пары ({}, {}): {} (S_min={})",
+                    firstKey, secondKey, similarity, newMinSum);
         }
     }
 
