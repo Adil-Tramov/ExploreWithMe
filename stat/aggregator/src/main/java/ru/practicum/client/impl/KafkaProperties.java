@@ -21,7 +21,6 @@ public class KafkaProperties {
         private String autoOffsetReset;
         private String keyDeserializer;
         private String valueDeserializer;
-        private boolean enableAutoCommit = false;
     }
 
     @Data
@@ -32,9 +31,5 @@ public class KafkaProperties {
         private String acks = "all";
         private Integer retries = 3;
         private Integer lingerMs = 100;
-        private Integer maxInFlightRequestsPerConnection = 1;
-        private Integer deliveryTimeoutMs = 120000;
-        private Integer requestTimeoutMs = 30000;
-        private Boolean enableIdempotence = true;
     }
 }

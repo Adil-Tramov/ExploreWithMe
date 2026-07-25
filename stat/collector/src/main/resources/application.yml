@@ -29,16 +29,3 @@ eureka:
     hostname: localhost
     instance-id: ${spring.application.name}:${random.value}
     leaseRenewalIntervalInSeconds: 10
-
-kafka:
-  bootstrap-servers: localhost:9092
-
-  topics:
-    input-topic: stats.user-actions.v1
-    output-topic: stats.user-actions.v1
-
-logging:
-  level:
-    ru.practicum: DEBUG
-  pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level --- [%thread] %logger{36} : %msg%n"

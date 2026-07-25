@@ -11,129 +11,82 @@ import org.apache.kafka.common.errors.WakeupException;
 import org.springframework.stereotype.Component;
 import ru.practicum.ewm.stats.avro.UserActionAvro;
 import stats.service.client.impl.KafkaClientConfigurationImpl;
-import stats.service.config.KafkaTopicsProperties;
 import stats.service.mapper.UserActionMapper;
 import stats.service.model.UserAction;
 import stats.service.repository.UserActionRepository;
 
 import java.time.Duration;
-import java.util.*;
+import java.util.List;
+import java.util.Optional;
 
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class UserActionProcessor {
+    private final List<String> TOPICS = List.of("stats.user-actions.v1");
+    private final String GROUPID = "action-analyzer-group";
+
     private final UserActionRepository userActionRepository;
     private final KafkaClientConfigurationImpl<UserActionAvro> client;
-    private final KafkaTopicsProperties kafkaTopics;
     private Consumer<String, UserActionAvro> consumer;
+
 
     @PostConstruct
     public void init() {
-        String groupId = kafkaTopics.getAnalyzerGroupId();
-        this.consumer = client.initConsumer(groupId, UserActionDeserializer.class);
+        this.consumer = client.initConsumer(GROUPID, UserActionDeserializer.class);
     }
 
     public void start() {
         try {
-            String inputTopic = kafkaTopics.getInputTopic();
-            consumer.subscribe(Collections.singletonList(inputTopic));
-
+            consumer.subscribe(TOPICS);
             while (true) {
                 ConsumerRecords<String, UserActionAvro> records =
                         consumer.poll(Duration.ofSeconds(1));
+                for (ConsumerRecord<String, UserActionAvro> record : records) {
+                    UserActionAvro avro = record.value();
+                    UserAction userAction = UserActionMapper.toEntity(avro);
 
-                if (records.isEmpty()) {
-                    continue;
+                    Optional<UserAction> existing = userActionRepository
+                            .findByUserIdAndEventId(userAction.getUserId(), userAction.getEventId());
+
+                    if (existing.isPresent()) {
+                        UserAction existingAction = existing.get();
+                        // Оставляем максимальный рейтинг
+                        if (userAction.getRating() > existingAction.getRating()) {
+                            existingAction.setRating(userAction.getRating());
+                            existingAction.setTs(userAction.getTs());
+                            userActionRepository.save(existingAction);
+                            log.debug("Обновлена запись для user_id={}, event_id={}, rating={} (было={})",
+                                    userAction.getUserId(),
+                                    userAction.getEventId(),
+                                    userAction.getRating(),
+                                    existingAction.getRating());
+                        } else {
+                            log.debug("Пропущено обновление для user_id={}, event_id={}, rating={} (текущий={})",
+                                    userAction.getUserId(),
+                                    userAction.getEventId(),
+                                    userAction.getRating(),
+                                    existingAction.getRating());
+                        }
+                    } else {
+                        userActionRepository.save(userAction);
+                        log.debug("Сохранена новая запись для user_id={}, event_id={}, rating={}",
+                                userAction.getUserId(),
+                                userAction.getEventId(),
+                                userAction.getRating());
+                    }
                 }
-
-                processRecords(records);
-
-                consumer.commitSync();
-                log.debug("Коммит offset выполнен успешно");
             }
         } catch (WakeupException ignored) {
         } catch (Exception e) {
             log.error("Ошибка во время получения данных", e);
         } finally {
-            closeConsumer();
-        }
-    }
-
-    private void processRecords(ConsumerRecords<String, UserActionAvro> records) {
-        List<UserAction> newActions = new ArrayList<>();
-
-        for (ConsumerRecord<String, UserActionAvro> record : records) {
-            UserAction action = UserActionMapper.toEntity(record.value());
-            newActions.add(action);
-        }
-
-        if (newActions.isEmpty()) {
-            return;
-        }
-
-        List<Long> userIds = newActions.stream()
-                .map(UserAction::getUserId)
-                .distinct()
-                .toList();
-
-        List<Long> eventIds = newActions.stream()
-                .map(UserAction::getEventId)
-                .distinct()
-                .toList();
-
-        List<UserAction> existingActions = userActionRepository
-                .findAllByUserIdInAndEventIdIn(userIds, eventIds);
-
-        Map<String, UserAction> existingMap = new HashMap<>();
-        for (UserAction action : existingActions) {
-            existingMap.put(createKey(action.getUserId(), action.getEventId()), action);
-        }
-
-        for (UserAction newAction : newActions) {
-            String key = createKey(newAction.getUserId(), newAction.getEventId());
-            UserAction existing = existingMap.get(key);
-
-            if (existing != null) {
-                if (newAction.getRating() > existing.getRating()) {
-                    existing.setRating(newAction.getRating());
-                    existing.setTs(newAction.getTs());
-                    userActionRepository.save(existing);
-                    log.debug("Обновлена запись для user_id={}, event_id={}, rating={} (было={})",
-                            newAction.getUserId(),
-                            newAction.getEventId(),
-                            newAction.getRating(),
-                            existing.getRating());
-                } else {
-                    log.debug("Пропущено обновление для user_id={}, event_id={}, rating={} (текущий={})",
-                            newAction.getUserId(),
-                            newAction.getEventId(),
-                            newAction.getRating(),
-                            existing.getRating());
-                }
-            } else {
-                userActionRepository.save(newAction);
-                log.debug("Сохранена новая запись для user_id={}, event_id={}, rating={}",
-                        newAction.getUserId(),
-                        newAction.getEventId(),
-                        newAction.getRating());
-            }
-        }
-    }
-
-    private String createKey(Long userId, Long eventId) {
-        return userId + "_" + eventId;
-    }
-
-    private void closeConsumer() {
-        try {
-            if (consumer != null) {
+            try {
                 consumer.commitSync();
+            } finally {
                 log.info("Закрываем консьюмер");
                 consumer.close();
             }
-        } catch (Exception e) {
-            log.error("Ошибка при закрытии консьюмера", e);
         }
     }
 }

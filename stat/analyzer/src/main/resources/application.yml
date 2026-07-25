@@ -26,24 +26,3 @@ eureka:
     hostname: localhost
     instance-id: ${spring.application.name}:${random.value}
     leaseRenewalIntervalInSeconds: 10
-
-kafka:
-  bootstrap-servers: localhost:9092
-
-  consumer:
-    group-id: similarity-analyzer-group
-    auto-offset-reset: earliest
-    key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-    value-deserializer: deserializer.EventSimilarityDeserializer
-    enable-auto-commit: false
-
-  topics:
-    input-topic: stats.events-similarity.v1
-    output-topic: stats.events-similarity.v1
-    analyzer-group-id: similarity-analyzer-group
-
-logging:
-  level:
-    stats.service: DEBUG
-  pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level --- [%thread] %logger{36} : %msg%n"

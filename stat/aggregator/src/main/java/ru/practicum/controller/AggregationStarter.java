@@ -8,7 +8,6 @@ import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.errors.WakeupException;
 import org.springframework.stereotype.Component;
 import ru.practicum.client.ClientConfiguration;
-import ru.practicum.config.KafkaTopicsProperties;
 import ru.practicum.ewm.stats.avro.ActionTypeAvro;
 import ru.practicum.ewm.stats.avro.EventSimilarityAvro;
 import ru.practicum.ewm.stats.avro.UserActionAvro;
@@ -24,15 +23,13 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class AggregationStarter {
     private final ClientConfiguration client;
-    private final KafkaTopicsProperties kafkaTopics;
     private final Map<Integer, Map<Integer, Double>> eventUserActionMatrix = new HashMap<>();
     private final Map<Integer, Double> eventSumValue = new HashMap<>();
     private final Map<Integer, Map<Integer, Double>> minWeightsSums = new HashMap<>();
 
     public void start() {
         try {
-            String inputTopic = kafkaTopics.getInputTopic();
-            client.getConsumer().subscribe(List.of(inputTopic));
+            client.getConsumer().subscribe(List.of("stats.user-actions.v1"));
 
             while (true) {
                 ConsumerRecords<String, UserActionAvro> records =
@@ -100,6 +97,10 @@ public class AggregationStarter {
 
             double otherUserWeight = getUserWeight(otherEventId, userId);
 
+            if (otherUserWeight == 0.0) {
+                continue;
+            }
+
             int firstKey = Math.min(eventId, otherEventId);
             int secondKey = Math.max(eventId, otherEventId);
 
@@ -127,6 +128,24 @@ public class AggregationStarter {
         return eventSumValue.getOrDefault(eventId, 0.0);
     }
 
+    private double calculateDeltaMin(double oldWeight, double newWeight, double otherUserWeight) {
+        double oldMin = Math.min(oldWeight, otherUserWeight);
+        double newMin = Math.min(newWeight, otherUserWeight);
+        return newMin - oldMin;
+    }
+
+    private double updateMinSum(int firstKey, int secondKey, double deltaMin) {
+        double currentMinSum = getMinSum(firstKey, secondKey);
+        double updatedMinSum = currentMinSum + deltaMin;
+
+        minWeightsSums
+                .computeIfAbsent(firstKey, k -> new HashMap<>())
+                .put(secondKey, updatedMinSum);
+
+        log.info("Обновлена S_min для пары ({}, {}): {}", firstKey, secondKey, updatedMinSum);
+        return updatedMinSum;
+    }
+
     private double getMinSum(int firstKey, int secondKey) {
         Map<Integer, Double> innerMap = minWeightsSums.get(firstKey);
         return innerMap != null ? innerMap.getOrDefault(secondKey, 0.0) : 0.0;
@@ -143,8 +162,7 @@ public class AggregationStarter {
                 .setTimestamp(Instant.now())
                 .build();
 
-        String outputTopic = kafkaTopics.getOutputTopic();
-        client.getProducer().send(new ProducerRecord<>(outputTopic, avro));
+        client.getProducer().send(new ProducerRecord<>("stats.events-similarity.v1", avro));
         log.info("Отправлено сходство для пары ({}, {}): {}", firstKey, secondKey, similarity);
     }
 
