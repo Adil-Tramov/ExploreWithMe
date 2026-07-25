@@ -91,6 +91,8 @@ public class AggregationStarter {
     }
 
     private void recalculateSimilarities(int eventId, int userId, double oldWeight, double newWeight) {
+        double deltaWeight = newWeight - oldWeight;
+
         for (int otherEventId : eventSumValue.keySet()) {
             if (otherEventId == eventId) {
                 continue;
@@ -101,31 +103,37 @@ public class AggregationStarter {
             int firstKey = Math.min(eventId, otherEventId);
             int secondKey = Math.max(eventId, otherEventId);
 
-            double sumFirst = getEventSum(firstKey);
-            double sumSecond = getEventSum(secondKey);
+            double oldSumFirst = getEventSum(firstKey) - (firstKey == eventId ? deltaWeight : 0);
+            double oldSumSecond = getEventSum(secondKey) - (secondKey == eventId ? deltaWeight : 0);
 
-            if (sumFirst <= 0 || sumSecond <= 0) {
+            double newSumFirst = getEventSum(firstKey);
+            double newSumSecond = getEventSum(secondKey);
+
+            if (newSumFirst <= 0 || newSumSecond <= 0 || oldSumFirst <= 0 || oldSumSecond <= 0) {
                 continue;
             }
 
-            double newMin = Math.min(newWeight, otherUserWeight);
             double oldMin = Math.min(oldWeight, otherUserWeight);
+            double newMin = Math.min(newWeight, otherUserWeight);
             double deltaMin = newMin - oldMin;
 
-            if (deltaMin != 0.0) {
-                double currentMinSum = getMinSum(firstKey, secondKey);
-                double updatedMinSum = currentMinSum + deltaMin;
+            double oldMinSum = getMinSum(firstKey, secondKey);
+            double newMinSum = oldMinSum + deltaMin;
 
-                minWeightsSums
-                        .computeIfAbsent(firstKey, k -> new HashMap<>())
-                        .put(secondKey, updatedMinSum);
+            double oldSimilarity = oldMinSum / (Math.sqrt(oldSumFirst) * Math.sqrt(oldSumSecond));
+            double newSimilarity = newMinSum / (Math.sqrt(newSumFirst) * Math.sqrt(newSumSecond));
 
-                log.info("Обновлена S_min для пары ({}, {}): {} (otherUserWeight={})",
-                        firstKey, secondKey, updatedMinSum, otherUserWeight);
+            minWeightsSums
+                    .computeIfAbsent(firstKey, k -> new HashMap<>())
+                    .put(secondKey, newMinSum);
 
-                sendSimilarityEvent(firstKey, secondKey, updatedMinSum, sumFirst, sumSecond);
+            if (Math.abs(newSimilarity - oldSimilarity) > 0.0001) {
+                log.info("Схожесть пары ({}, {}) изменилась: {} -> {} (userWeight: {} -> {}, otherUserWeight: {})",
+                        firstKey, secondKey, oldSimilarity, newSimilarity, oldWeight, newWeight, otherUserWeight);
+                sendSimilarityEvent(firstKey, secondKey, newMinSum, newSumFirst, newSumSecond);
             } else {
-                log.debug("deltaMin = 0 для пары ({}, {}), сообщение не отправлено", firstKey, secondKey);
+                log.debug("Схожесть для пары ({}, {}) не изменилась: {} -> {}",
+                        firstKey, secondKey, oldSimilarity, newSimilarity);
             }
         }
     }
