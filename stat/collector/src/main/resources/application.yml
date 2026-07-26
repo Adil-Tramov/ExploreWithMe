@@ -19,6 +19,10 @@ spring:
       retry:
         useRandomPolicy: true
         max-interval: 6000
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.r2dbc.R2dbcAutoConfiguration
+      - org.springframework.boot.autoconfigure.r2dbc.R2dbcTransactionManagerAutoConfiguration
 
 eureka:
   client:
@@ -29,3 +33,31 @@ eureka:
     hostname: localhost
     instance-id: ${spring.application.name}:${random.value}
     leaseRenewalIntervalInSeconds: 10
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: gateway,health,info
+  endpoint:
+    gateway:
+      enabled: true
+
+logging:
+  level:
+    ru.practicum: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level --- [%thread] %logger{36} : %msg%n"
+
+kafka:
+  topics:
+    user-actions: stats.user-actions.v1
+  producer:
+    group-id: collector-producer
+    client-id: collector-${random.uuid}
+    bootstrap-servers: localhost:9092
+    key-serializer: org.apache.kafka.common.serialization.StringSerializer
+    value-serializer: serializer.AvroSerializer
+    acks: all
+    retries: 3
+    linger-ms: 100
