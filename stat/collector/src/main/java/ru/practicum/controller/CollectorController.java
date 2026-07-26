@@ -38,7 +38,6 @@ public class CollectorController extends UserActionControllerGrpc.UserActionCont
         UserActionAvro avro = UserActionMapper.toAvro(proto);
         log.info("Маппинг данных в avro: {}", avro);
         try {
-            // Используем конфигурируемый топик
             String topic = topicsProperties.getUserActions();
             producer.send(new ProducerRecord<>(topic, avro));
             log.info("Сообщение отправлено в топик: {}", topic);
