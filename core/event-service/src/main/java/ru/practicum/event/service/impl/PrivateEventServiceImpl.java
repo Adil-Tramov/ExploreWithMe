@@ -20,13 +20,9 @@ import ru.practicum.event.service.PrivateEventService;
 import ru.practicum.exception.ConditionsNotMetException;
 import ru.practicum.exception.ConflictException;
 import ru.practicum.exception.NotFoundException;
-import ru.practicum.stat.client.StatsClient;
-import ru.practicum.stat.dto.ViewStatsDto;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -36,7 +32,6 @@ public class PrivateEventServiceImpl implements PrivateEventService {
 
     private final EventRepository eventRepository;
     private final CategoryRepository categoryRepository;
-    private final StatsClient statsClient;
 
     @Override
     @Transactional
@@ -82,51 +77,6 @@ public class PrivateEventServiceImpl implements PrivateEventService {
         log.info("Событие {} обновлено", eventId);
 
         return updatedEvent;
-    }
-
-    @Override
-    public Long getViewsForEvent(Event event) {
-        if (event == null) {
-            return 0L;
-        }
-
-        LocalDateTime start = event.getPublishedOn() != null ?
-                event.getPublishedOn() :
-                event.getCreatedOn();
-
-        if (start == null) {
-            start = LocalDateTime.now().minusYears(10);
-        }
-
-        List<String> uris = List.of("/events/" + event.getId());
-        List<ViewStatsDto> stats = statsClient.getStats(start, LocalDateTime.now(), uris, true);
-
-        return stats.isEmpty() ? 0L : stats.getFirst().getHits();
-    }
-
-    @Override
-    public Map<Long, Long> getViewsForEvents(List<Event> events) {
-        if (events == null || events.isEmpty()) {
-            return Map.of();
-        }
-
-        LocalDateTime earliestStart = events.stream()
-                .map(e -> e.getPublishedOn() != null ? e.getPublishedOn() : e.getCreatedOn())
-                .min(LocalDateTime::compareTo)
-                .orElse(LocalDateTime.now().minusYears(10));
-
-        List<String> uris = events.stream()
-                .map(e -> "/events/" + e.getId())
-                .toList();
-
-        List<ViewStatsDto> stats = statsClient.getStats(earliestStart, LocalDateTime.now(), uris, false);
-
-        return stats.stream()
-                .collect(Collectors.toMap(
-                        v -> Long.parseLong(v.getUri().substring(v.getUri().lastIndexOf('/') + 1)),
-                        ViewStatsDto::getHits,
-                        (a, b) -> a
-                ));
     }
 
     private Category findCategoryById(Long categoryId) {

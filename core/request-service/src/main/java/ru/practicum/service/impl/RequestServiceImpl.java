@@ -70,6 +70,7 @@ public class RequestServiceImpl implements RequestService {
 
         request = requestRepository.save(request);
         log.info("Заявка создана с id: {}", request.getId());
+
         return request;
     }
 

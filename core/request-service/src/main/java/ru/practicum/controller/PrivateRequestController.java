@@ -17,6 +17,8 @@ import ru.practicum.faign.UserServiceFeign;
 import ru.practicum.mapper.RequestMapper;
 import ru.practicum.model.ParticipationRequest;
 import ru.practicum.service.RequestService;
+import ru.practicum.controllerInterface.StatClientController;
+import stats.service.collector.ActionTypeProto;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -31,6 +33,7 @@ public class PrivateRequestController {
     private final RequestService requestService;
     private final UserServiceFeign userServiceFeign;
     private final EventServiceFeign eventServiceFeign;
+    private final StatClientController statClient;
 
     @GetMapping
     public List<ParticipationRequestDto> getUserRequests(@PathVariable @Positive Long userId) {
@@ -53,6 +56,7 @@ public class PrivateRequestController {
         EventFullDto event = eventServiceFeign.getEventByIdWithoutHttp(eventId);
 
         ParticipationRequest pr = requestService.createRequest(userId, eventId, event, requester);
+        statClient.saveStat(userId, eventId, ActionTypeProto.ACTION_REGISTER);
         return RequestMapper.toDto(pr);
     }
 
@@ -101,8 +105,8 @@ public class PrivateRequestController {
             @PathVariable Long userId,
             @RequestParam("eventIds") List<Long> eventIds,
             @RequestParam("status") RequestStatus requestStatus) {
-        log.info("GET /users/{}/requests/allWithStatus?RequestStatus={} Event list: {}", userId, requestStatus, eventIds);
-        return requestService.getAllByEventIdInAndStatus(1L, eventIds, requestStatus).stream()
+        log.info("GET /users/{}/requests/allWithStatus/list?RequestStatus={} Event list: {}", userId, requestStatus, eventIds);
+        return requestService.getAllByEventIdInAndStatus(userId, eventIds, requestStatus).stream()
                 .map(RequestMapper::toDto)
                 .collect(Collectors.toList());
     }

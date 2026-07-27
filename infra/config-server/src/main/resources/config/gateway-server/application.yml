@@ -10,7 +10,6 @@ spring:
         locator:
           enabled: true
       routes:
-        # ===== СНАЧАЛА МАРШРУТЫ ДЛЯ EVENT-SERVICE (БОЛЕЕ СПЕЦИФИЧНЫЕ) =====
 
         - id: event-service-admin
           uri: lb://event-service
@@ -61,7 +60,6 @@ spring:
           filters:
             - StripPrefix=0
 
-        # ===== ЗАТЕМ МАРШРУТЫ ДЛЯ REQUEST-SERVICE =====
 
         - id: request-service-all-with-status
           uri: lb://request-service
@@ -84,7 +82,6 @@ spring:
           filters:
             - StripPrefix=0
 
-        # ===== МАРШРУТЫ ДЛЯ USER-SERVICE =====
 
         - id: user-service-admin
           uri: lb://user-service
@@ -93,7 +90,6 @@ spring:
           filters:
             - StripPrefix=0
 
-        # ===== МАРШРУТЫ ДЛЯ RATING-SERVICE =====
 
         - id: rating-service-private
           uri: lb://rating-service
@@ -106,6 +102,13 @@ spring:
           uri: lb://rating-service
           predicates:
             - Path=/public/events/**
+          filters:
+            - StripPrefix=0
+
+        - id: stats-server
+          uri: lb://stats-service
+          predicates:
+            - Path=/api**
           filters:
             - StripPrefix=0
 

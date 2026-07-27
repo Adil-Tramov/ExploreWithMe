@@ -6,7 +6,6 @@ import ru.practicum.dto.userDto.UserDto;
 import ru.practicum.event.model.Event;
 
 import java.util.List;
-import java.util.Map;
 
 public interface PrivateEventService {
 
@@ -17,8 +16,4 @@ public interface PrivateEventService {
     Event getUserEventById(Long userId, Long eventId);
 
     Event updateUserEvent(Long userId, Long eventId, UpdateEventUserRequest dto);
-
-    Long getViewsForEvent(Event event);
-
-    Map<Long, Long> getViewsForEvents(List<Event> events);
 }

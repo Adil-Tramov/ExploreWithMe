@@ -8,17 +8,21 @@ import org.springframework.web.bind.annotation.*;
 import ru.practicum.compilation.mapper.CompilationMapper;
 import ru.practicum.compilation.model.Compilation;
 import ru.practicum.compilation.service.PublicCompilationService;
+
 import ru.practicum.dto.compilationDto.CompilationDto;
 import ru.practicum.dto.eventDto.EventShortDto;
 import ru.practicum.dto.requestDto.ParticipationRequestDto;
 import ru.practicum.dto.requestDto.RequestStatus;
+import ru.practicum.dto.statServerDto.RecommendedEventDto;
 import ru.practicum.dto.userDto.UserDto;
 import ru.practicum.dto.userDto.UserShortDto;
 import ru.practicum.event.mapper.EventMapper;
 import ru.practicum.event.model.Event;
 import ru.practicum.faign.RequestServiceFeign;
 import ru.practicum.faign.UserServiceFeign;
+import ru.practicum.controllerInterface.StatClientController;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -33,6 +37,7 @@ public class PublicCompilationController {
     private final PublicCompilationService publicCompilationService;
     private final UserServiceFeign userServiceFeign;
     private final RequestServiceFeign requestServiceFeign;
+    private final StatClientController statClient;
 
     @GetMapping
     public List<CompilationDto> getCompilations(@RequestParam(required = false) Boolean pinned,
@@ -51,7 +56,15 @@ public class PublicCompilationController {
                 .distinct()
                 .toList();
 
-        Map<Long, Long> viewsMap = publicCompilationService.getViewsForEvents(allEvents);
+        List<Long> eventIds = allEvents.stream()
+                .map(Event::getId)
+                .toList();
+        List<RecommendedEventDto> rating = statClient.getInteractionsCountAsList(eventIds);
+        Map<Long, Double> ratingForEventMap = new HashMap<>();
+        rating.forEach(recommendedEventProto -> {
+                    ratingForEventMap.putIfAbsent((long) recommendedEventProto.getEventId(), recommendedEventProto.getScore());
+                }
+        );
 
         Map<Long, Long> confirmedMap = getConfirmedRequestsCounts(allEvents);
 
@@ -62,10 +75,12 @@ public class PublicCompilationController {
                     List<EventShortDto> eventShortDtos = compilation.getEvents().stream()
                             .map(event -> {
                                 Long confirmedRequests = confirmedMap.getOrDefault(event.getId(), 0L);
-                                Long views = viewsMap.getOrDefault(event.getId(), 0L);
                                 UserShortDto initiator = initiatorMap.get(event.getInitiatorId());
 
-                                return EventMapper.toShortDto(event, confirmedRequests, views, initiator);
+                                return EventMapper.toShortDto(event,
+                                        confirmedRequests,
+                                        ratingForEventMap.get(compilation.getId()),
+                                        initiator);
                             })
                             .collect(Collectors.toList());
 
@@ -82,7 +97,15 @@ public class PublicCompilationController {
 
         List<Event> events = compilation.getEvents();
 
-        Map<Long, Long> viewsMap = publicCompilationService.getViewsForEvents(events);
+        List<Long> eventIds = events.stream()
+                .map(Event::getId)
+                .toList();
+        List<RecommendedEventDto> rating = statClient.getInteractionsCountAsList(eventIds);
+        Map<Long, Double> ratingForEventMap = new HashMap<>();
+        rating.forEach(recommendedEventProto -> {
+                    ratingForEventMap.putIfAbsent((long) recommendedEventProto.getEventId(), recommendedEventProto.getScore());
+                }
+        );
 
         Map<Long, Long> confirmedMap = getConfirmedRequestsCounts(events);
 
@@ -91,10 +114,9 @@ public class PublicCompilationController {
         List<EventShortDto> eventShortDtos = events.stream()
                 .map(event -> {
                     Long confirmedRequests = confirmedMap.getOrDefault(event.getId(), 0L);
-                    Long views = viewsMap.getOrDefault(event.getId(), 0L);
                     UserShortDto initiator = initiatorMap.get(event.getInitiatorId());
 
-                    return EventMapper.toShortDto(event, confirmedRequests, views, initiator);
+                    return EventMapper.toShortDto(event, confirmedRequests, ratingForEventMap.get(event.getId()), initiator);
                 })
                 .collect(Collectors.toList());
 

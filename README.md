@@ -43,11 +43,13 @@
 2. Запустить модуль **infra/discovery-server**
 3. Запустить модуль **infra/config-server**
 4. Запустить модуль **infra/gateway-server**
-5. Запустить модуль **stat/stats-server**
-6. Запустить модуль **core/user-service**
-7. Запустить модуль **core/event-service**
-8. Запустить модуль **core/request-service**
-9. Запустить модуль **core/rating-service**
+5. Запустить модуль **stat/aggregator**
+6. Запустить модуль **stat/analyzer**
+7. Запустить модуль **stat/collector**
+8. Запустить модуль **core/user-service**
+9. Запустить модуль **core/event-service**
+10. Запустить модуль **core/request-service**
+11. Запустить модуль **core/rating-service**
 
 ---
 

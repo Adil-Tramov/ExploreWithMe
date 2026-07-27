@@ -1,0 +1,218 @@
+name: Explore With Me Tests
+
+on:
+  workflow_dispatch:
+    inputs:
+      stats_test_mode:
+        description: "Режим тестирования рекомендательной системы"
+        required: false
+        default: ANALYZE
+        type: choice
+        options:
+          - COLLECTION
+          - AGGREGATION
+          - ANALYZE
+      verbose_mode:
+        description: "Включить подробные логи во время тестов"
+        required: false
+        default: false
+        type: boolean
+      print_logs:
+        description: "Включить вывод логов в консоль"
+        required: false
+        default: false
+        type: boolean
+  workflow_call:
+    inputs:
+      stats_test_mode:
+        description: "Режим тестирования рекомендательной системы"
+        required: false
+        default: "ANALYZE"
+        type: string
+      verbose_mode:
+        required: false
+        type: string
+        default: "false"
+      print_logs:
+        required: false
+        type: string
+        default: "false"
+
+env:
+  VERBOSE_MODE: ${{ inputs.verbose_mode }}
+  PRINT_LOGS: ${{ inputs.print_logs }}
+  STATS_TEST_MODE: ${{ inputs.stats_test_mode }}
+  LOG_DIR: ./logs
+  STUFF_REPO: "https://github.com/yandex-praktikum/java-plus-graduation.git"
+  STUFF_BRANCH: "ci"
+  STUFF_PATH: .github/workflows/stuff
+  POSTGRES_USER: postgres
+  POSTGRES_PASSWORD: password
+  POSTGRES_PORT: 5432
+
+jobs:
+  check-repo:
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'pull_request' }}
+    steps:
+      - name: Checkout workflow stuff
+        run: |
+          # Создаем временную папку
+          mkdir -p temp_checkout
+          cd temp_checkout
+
+          # Инициализируем git и настраиваем sparse-checkout
+          git init
+          git remote add origin "$STUFF_REPO"
+          git config core.sparseCheckout true
+          echo "$STUFF_PATH/*" >> .git/info/sparse-checkout
+          
+          # Клонируем только нужную папку с аутентификацией
+          git pull --depth=1 "https://x-access-token:${GH_TOKEN}@${STUFF_REPO#https://}" "$STUFF_BRANCH"
+          
+          mkdir -p "../${STUFF_PATH}"
+          
+          # Перемещаем файлы в папку stuff
+          mv "${STUFF_PATH}"/* "../${STUFF_PATH}/"
+          
+          ls -la "../${STUFF_PATH}"
+          
+          # Выходим из временной папки и удаляем её
+          cd ..
+          rm -rf temp_checkout
+          # Даём разрешения на выполнение скриптов
+          chmod +x ${STUFF_PATH}/scripts/*.sh
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Check repo not fork and public
+        run: ${STUFF_PATH}/scripts/check-repo.sh
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Check branch name
+        run: ${STUFF_PATH}/scripts/check-branch.sh
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Check files
+        run: ${STUFF_PATH}/scripts/check-files.sh
+        env:
+          PULL_NUMBER: ${{ github.event.number }}
+          GH_TOKEN: ${{ github.token }}
+
+  build-and-test:
+    needs: check-repo
+    if: always() && needs.check-repo.result != 'failure'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Print Git Info
+        run: |
+          echo "🟢 GitHub Event Info:"
+          echo "🔀 Branch name: ${{ github.ref_name }}"
+          echo "🔢 Commit SHA: ${{ github.sha }}"
+          echo "✍️  Commit author: ${{ github.actor }}"
+          echo "📝 Commit message: ${{ github.event.head_commit.message }}"
+
+      - name: Checkout target repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1  # Оптимизируем скорость
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Checkout workflow stuff
+        run: |
+          # Создаем временную папку
+          mkdir -p temp_checkout
+          cd temp_checkout
+
+          # Инициализируем git и настраиваем sparse-checkout
+          git init
+          git remote add origin "$STUFF_REPO"
+          git config core.sparseCheckout true
+          echo "$STUFF_PATH/*" >> .git/info/sparse-checkout
+          
+          # Клонируем только нужную папку с аутентификацией
+          git pull --depth=1 "https://x-access-token:${GH_TOKEN}@${STUFF_REPO#https://}" "$STUFF_BRANCH"
+          
+          mkdir -p "../${STUFF_PATH}"
+
+          # Перемещаем файлы в папку stuff
+          mv "${STUFF_PATH}"/* "../${STUFF_PATH}/"
+
+          ls -la "../${STUFF_PATH}"
+
+          # Выходим из временной папки и удаляем её
+          cd ..
+          rm -rf temp_checkout
+          # Даём разрешения на выполнение скриптов
+          chmod +x ${STUFF_PATH}/scripts/*.sh
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Check and Build application
+        run: |
+          mvn clean install -DskipTests --no-transfer-progress
+
+      - name: Start infrastructure
+        run: ${STUFF_PATH}/scripts/start-infra.sh
+
+      - name: Verify JAR files and Start Services
+        run: ${STUFF_PATH}/scripts/start-services.sh
+
+      - name: Install Node
+        if: |
+          contains(fromJson('["spring-cloud", "microservices", "recommendations"]'), github.ref_name) || 
+          contains(fromJson('["spring-cloud", "microservices", "recommendations"]'), github.head_ref)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '16.x'
+
+      - name: Install newman
+        if: |
+          contains(fromJson('["spring-cloud", "microservices", "recommendations"]'), github.ref_name) || 
+          contains(fromJson('["spring-cloud", "microservices", "recommendations"]'), github.head_ref)
+        run: |
+          npm install -g newman
+          npm install -g newman-reporter-htmlextra
+
+      - name: Test Recommendation Services
+        id: test
+        if: contains(fromJson('["recommendations"]'), github.ref_name) || contains(fromJson('["recommendations"]'), github.head_ref)
+        run: ${STUFF_PATH}/scripts/run-stats-tests.sh
+        continue-on-error: false
+
+      - name: Run POSTMAN tests
+        if: |
+          contains(fromJson('["spring-cloud", "microservices", "recommendations"]'), github.ref_name) || 
+          contains(fromJson('["spring-cloud", "microservices", "recommendations"]'), github.head_ref)
+        run: ${STUFF_PATH}/scripts/run-postman-tests.sh
+
+      - name: Capture Exit Status
+        if: always()
+        run: echo "STATUS=${{ steps.test.outcome }}" >> $GITHUB_ENV
+
+      - name: Compose down
+        if: always()
+        run: ${STUFF_PATH}/scripts/stop-infra.sh
+
+      - name: Upload execution log artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-and-execution-report
+          path: |
+            execution-report.txt
+            ./logs/*.log
+            reports
+
+      - name: Fail if Tests Failed
+        if: env.STATUS != 'success' && env.STATUS != 'skipped'
+        run: |
+          echo "❌ Тесты завершились с ошибками!"
+          exit 1

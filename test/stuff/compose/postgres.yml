@@ -1,0 +1,18 @@
+services:
+  postgres:
+    image: postgres:16.1
+    container_name: postgres
+    hostname: ${POSTGRES_HOST:-postgres}
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+      POSTGRES_DB: ${POSTGRES_DB:-ewm_analyzer}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - ./init-scripts:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-dbuser}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10

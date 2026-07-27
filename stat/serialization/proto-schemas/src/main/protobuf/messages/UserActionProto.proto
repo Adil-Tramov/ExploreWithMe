@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package stats.service.collector;
+
+import "google/protobuf/timestamp.proto";
+
+option java_multiple_files = true;
+option java_package = "stats.service.collector";
+
+message UserActionProto {
+    int32 user_id = 1;
+    int32 event_id = 2;
+    ActionTypeProto action_type = 3;
+    google.protobuf.Timestamp timestamp = 4;
+}
+
+enum ActionTypeProto {
+    ACTION_VIEW = 0;
+    ACTION_REGISTER = 1;
+    ACTION_LIKE = 2;
+}

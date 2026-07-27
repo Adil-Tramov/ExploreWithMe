@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+		 xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 
 	<parent>
@@ -20,12 +20,35 @@
 	<properties>
 		<java.version>21</java.version>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <lombok.version>1.18.36</lombok.version>
+		<lombok.version>1.18.36</lombok.version>
 		<spring-cloud-dependencies.version>2023.0.3</spring-cloud-dependencies.version>
 		<spring-cloud-starter-openfeign.version>4.1.3</spring-cloud-starter-openfeign.version>
 		<spring-cloud-starter-circuitbreaker-resilience4j.version>3.1.2</spring-cloud-starter-circuitbreaker-resilience4j.version>
 		<spring-cloud-starter-config.version>4.1.3</spring-cloud-starter-config.version>
 		<spring-cloud-starter-netflix-eureka-client.version>4.1.3</spring-cloud-starter-netflix-eureka-client.version>
+
+		<avro.version>1.11.3</avro.version>
+		<grpc.version>1.63.0</grpc.version>
+		<kafka-clients.version>3.6.1</kafka-clients.version>
+		<springdoc-openapi-starter.version>2.6.0</springdoc-openapi-starter.version>
+		<grpc-spring-boot-starter.version>3.1.0.RELEASE</grpc-spring-boot-starter.version>
+		<protobuf-java.version>3.23.4</protobuf-java.version>
+
+		<feign-httpclient.version>13.2.1</feign-httpclient.version>
+		<postgresql.version>42.7.3</postgresql.version>
+		<h2.version>2.2.224</h2.version>
+		<jakarta-annotation-api.version>2.1.1</jakarta-annotation-api.version>
+		<javax-annotation-api.version>1.3.2</javax-annotation-api.version>
+		<build-helper-maven-plugin.version>3.6.0</build-helper-maven-plugin.version>
+		<grpc-client-spring-boot-starter.version>3.1.0.RELEASE</grpc-client-spring-boot-starter.version>
+		<spring-dotenv.version>4.0.0</spring-dotenv.version>
+		<mapstruct.version>1.5.5.Final</mapstruct.version>
+		<resilience4j-spring-boot2.version>2.0.2</resilience4j-spring-boot2.version>
+
+		<!--       Plugins       -->
+		<maven-compiler-plugin.version>3.11.0</maven-compiler-plugin.version>
+		<avro-maven-plugin.version>${avro.version}</avro-maven-plugin.version>
+		<protobuf-plugin.version>2.4.0</protobuf-plugin.version>
 	</properties>
 
 	<modules>
@@ -33,10 +56,12 @@
 		<module>stat</module>
 		<module>core</module>
 		<module>core/api</module>
+		<module>stat/stat-client</module>
 	</modules>
 
 	<dependencyManagement>
 		<dependencies>
+			<!-- ===== SPRING CLOUD ===== -->
 			<dependency>
 				<groupId>org.springframework.cloud</groupId>
 				<artifactId>spring-cloud-dependencies</artifactId>
@@ -44,12 +69,157 @@
 				<type>pom</type>
 				<scope>import</scope>
 			</dependency>
+
+			<!-- ===== AVRO ===== -->
+			<dependency>
+				<groupId>org.apache.avro</groupId>
+				<artifactId>avro</artifactId>
+				<version>${avro.version}</version>
+			</dependency>
+
+			<!-- ===== KAFKA ===== -->
+			<dependency>
+				<groupId>org.apache.kafka</groupId>
+				<artifactId>kafka-clients</artifactId>
+				<version>${kafka-clients.version}</version>
+			</dependency>
+
+			<!-- ===== OPENAPI ===== -->
+			<dependency>
+				<groupId>org.springdoc</groupId>
+				<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+				<version>${springdoc-openapi-starter.version}</version>
+			</dependency>
+
+			<!-- ===== GRPC ===== -->
+			<dependency>
+				<groupId>net.devh</groupId>
+				<artifactId>grpc-spring-boot-starter</artifactId>
+				<version>${grpc-spring-boot-starter.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>net.devh</groupId>
+				<artifactId>grpc-server-spring-boot-starter</artifactId>
+				<version>${grpc-spring-boot-starter.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>net.devh</groupId>
+				<artifactId>grpc-client-spring-boot-starter</artifactId>
+				<version>${grpc-client-spring-boot-starter.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>io.grpc</groupId>
+				<artifactId>grpc-stub</artifactId>
+				<version>${grpc.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>io.grpc</groupId>
+				<artifactId>grpc-protobuf</artifactId>
+				<version>${grpc.version}</version>
+			</dependency>
+
+			<!-- ===== PROTOBUF ===== -->
+			<dependency>
+				<groupId>com.google.protobuf</groupId>
+				<artifactId>protobuf-java</artifactId>
+				<version>${protobuf-java.version}</version>
+			</dependency>
+
+			<!-- ===== DATABASE ===== -->
+			<dependency>
+				<groupId>org.postgresql</groupId>
+				<artifactId>postgresql</artifactId>
+				<version>${postgresql.version}</version>
+				<scope>runtime</scope>
+			</dependency>
+			<dependency>
+				<groupId>com.h2database</groupId>
+				<artifactId>h2</artifactId>
+				<version>${h2.version}</version>
+				<scope>runtime</scope>
+			</dependency>
+
+			<!-- ===== HTTP CLIENTS ===== -->
+			<dependency>
+				<groupId>io.github.openfeign</groupId>
+				<artifactId>feign-httpclient</artifactId>
+				<version>${feign-httpclient.version}</version>
+			</dependency>
+
+			<!-- ===== UTILITIES ===== -->
+			<dependency>
+				<groupId>me.paulschwarz</groupId>
+				<artifactId>spring-dotenv</artifactId>
+				<version>${spring-dotenv.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.mapstruct</groupId>
+				<artifactId>mapstruct</artifactId>
+				<version>${mapstruct.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.mapstruct</groupId>
+				<artifactId>mapstruct-processor</artifactId>
+				<version>${mapstruct.version}</version>
+				<scope>provided</scope>
+			</dependency>
+			<dependency>
+				<groupId>jakarta.annotation</groupId>
+				<artifactId>jakarta.annotation-api</artifactId>
+				<version>${jakarta-annotation-api.version}</version>
+			</dependency>
 		</dependencies>
 	</dependencyManagement>
 
 	<build>
 		<pluginManagement>
 			<plugins>
+				<!-- ===== COMPILER ===== -->
+				<plugin>
+					<groupId>org.apache.maven.plugins</groupId>
+					<artifactId>maven-compiler-plugin</artifactId>
+					<version>${maven-compiler-plugin.version}</version>
+				</plugin>
+
+				<!-- ===== AVRO ===== -->
+				<plugin>
+					<groupId>org.apache.avro</groupId>
+					<artifactId>avro-maven-plugin</artifactId>
+					<version>${avro-maven-plugin.version}</version>
+				</plugin>
+
+				<!-- ===== PROTOBUF ===== -->
+				<plugin>
+					<groupId>io.github.ascopes</groupId>
+					<artifactId>protobuf-maven-plugin</artifactId>
+					<version>${protobuf-plugin.version}</version>
+					<configuration>
+						<protocVersion>${protobuf-java.version}</protocVersion>
+						<binaryMavenPlugins>
+							<binaryMavenPlugin>
+								<groupId>io.grpc</groupId>
+								<artifactId>protoc-gen-grpc-java</artifactId>
+								<version>${grpc.version}</version>
+							</binaryMavenPlugin>
+						</binaryMavenPlugins>
+					</configuration>
+					<executions>
+						<execution>
+							<goals>
+								<goal>generate</goal>
+							</goals>
+						</execution>
+					</executions>
+				</plugin>
+
+				<!-- ===== BUILD HELPER ===== -->
+				<plugin>
+					<groupId>org.codehaus.mojo</groupId>
+					<artifactId>build-helper-maven-plugin</artifactId>
+					<version>${build-helper-maven-plugin.version}</version>
+				</plugin>
+
+				<!-- ===== TEST ===== -->
 				<plugin>
 					<groupId>org.apache.maven.plugins</groupId>
 					<artifactId>maven-surefire-plugin</artifactId>
@@ -59,6 +229,8 @@
 						</systemPropertyVariables>
 					</configuration>
 				</plugin>
+
+				<!-- ===== CHECKSTYLE ===== -->
 				<plugin>
 					<groupId>org.apache.maven.plugins</groupId>
 					<artifactId>maven-checkstyle-plugin</artifactId>
@@ -85,6 +257,8 @@
 						</dependency>
 					</dependencies>
 				</plugin>
+
+				<!-- ===== SPOTBUGS ===== -->
 				<plugin>
 					<groupId>com.github.spotbugs</groupId>
 					<artifactId>spotbugs-maven-plugin</artifactId>
@@ -101,6 +275,8 @@
 						</execution>
 					</executions>
 				</plugin>
+
+				<!-- ===== JACOCO ===== -->
 				<plugin>
 					<groupId>org.jacoco</groupId>
 					<artifactId>jacoco-maven-plugin</artifactId>
@@ -172,6 +348,7 @@
 			</plugins>
 		</pluginManagement>
 	</build>
+
 	<profiles>
 		<profile>
 			<id>check</id>
@@ -208,5 +385,4 @@
 			</build>
 		</profile>
 	</profiles>
-
 </project>

@@ -16,13 +16,16 @@ import ru.practicum.dto.compilationDto.UpdateCompilationRequest;
 import ru.practicum.dto.eventDto.EventShortDto;
 import ru.practicum.dto.requestDto.ParticipationRequestDto;
 import ru.practicum.dto.requestDto.RequestStatus;
+import ru.practicum.dto.statServerDto.RecommendedEventDto;
 import ru.practicum.dto.userDto.UserDto;
 import ru.practicum.dto.userDto.UserShortDto;
 import ru.practicum.event.mapper.EventMapper;
 import ru.practicum.event.model.Event;
 import ru.practicum.faign.RequestServiceFeign;
 import ru.practicum.faign.UserServiceFeign;
+import ru.practicum.controllerInterface.StatClientController;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -37,6 +40,7 @@ public class AdminCompilationController {
     private final AdminCompilationService adminCompilationService;
     private final RequestServiceFeign requestServiceFeign;
     private final UserServiceFeign userServiceFeign;
+    private final StatClientController statClient;
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -45,11 +49,22 @@ public class AdminCompilationController {
 
         Compilation compilation = adminCompilationService.createCompilation(newCompilationDto);
 
-        Map<Long, Long> viewsMap = adminCompilationService.getViewsForEvents(compilation.getEvents());
+        Map<Long, Double> ratingForEventMap = new HashMap<>();
+        List<Long> eventsIds = compilation.getEvents()
+                .stream()
+                .map(Event::getId)
+                .toList();
+        List<RecommendedEventDto> rating = statClient.getInteractionsCountAsList(eventsIds);
+        rating.forEach(recommendedEventProto -> {
+                    ratingForEventMap.putIfAbsent((long) recommendedEventProto.getEventId(), recommendedEventProto.getScore());
+                }
+        );
+
+
         Map<Long, Long> confirmedMap = getConfirmedRequestsCounts(compilation.getEvents());
         Map<Long, UserShortDto> initiatorMap = getEventInitiators(compilation.getEvents());
 
-        return toDtoWithStats(compilation, viewsMap, confirmedMap, initiatorMap);
+        return toDtoWithStats(compilation, ratingForEventMap, confirmedMap, initiatorMap);
     }
 
     @DeleteMapping("/{compId}")
@@ -66,11 +81,21 @@ public class AdminCompilationController {
 
         Compilation compilation = adminCompilationService.updateCompilation(compId, request);
 
-        Map<Long, Long> viewsMap = adminCompilationService.getViewsForEvents(compilation.getEvents());
+        Map<Long, Double> ratingForEventMap = new HashMap<>();
+        List<Long> eventsIds = compilation.getEvents()
+                .stream()
+                .map(Event::getId)
+                .toList();
+        List<RecommendedEventDto> rating = statClient.getInteractionsCountAsList(eventsIds);
+        rating.forEach(recommendedEventProto -> {
+                    ratingForEventMap.putIfAbsent((long) recommendedEventProto.getEventId(), recommendedEventProto.getScore());
+                }
+        );
+
         Map<Long, Long> confirmedMap = getConfirmedRequestsCounts(compilation.getEvents());
         Map<Long, UserShortDto> initiatorMap = getEventInitiators(compilation.getEvents());
 
-        return toDtoWithStats(compilation, viewsMap, confirmedMap, initiatorMap);
+        return toDtoWithStats(compilation, ratingForEventMap, confirmedMap, initiatorMap);
     }
 
     private Map<Long, Long> getConfirmedRequestsCounts(List<Event> events) {
@@ -111,14 +136,14 @@ public class AdminCompilationController {
     }
 
     private CompilationDto toDtoWithStats(Compilation compilation,
-                                          Map<Long, Long> viewsMap,
+                                          Map<Long, Double> eventScore,
                                           Map<Long, Long> confirmedMap,
                                           Map<Long, UserShortDto> initiatorMap) {
         List<EventShortDto> eventShortDtos = compilation.getEvents().stream()
                 .map(event -> EventMapper.toShortDto(
                         event,
                         confirmedMap.getOrDefault(event.getId(), 0L),
-                        viewsMap.getOrDefault(event.getId(), 0L),
+                        eventScore.getOrDefault(event.getId(), 0.0),
                         initiatorMap.get(event.getInitiatorId())
                 ))
                 .collect(Collectors.toList());
