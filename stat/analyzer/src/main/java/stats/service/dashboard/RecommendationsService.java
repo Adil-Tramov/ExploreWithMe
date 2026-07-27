@@ -16,6 +16,10 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class RecommendationsService {
+
+    private static final int MAX_NEIGHBORS_FOR_PREDICTION = 20;
+    private static final int DEFAULT_MAX_RESULTS = 10;
+
     private final EventSimilarityRepository eventSimilarityRepository;
     private final UserActionRepository userActionRepository;
 
@@ -62,13 +66,9 @@ public class RecommendationsService {
         }
 
         List<Long> candidateIds = new ArrayList<>(candidateEvents.keySet());
-        List<EventSimilarity> allSimilarities = new ArrayList<>();
 
-        for (Long candidateId : candidateIds) {
-            allSimilarities.addAll(
-                    eventSimilarityRepository.findByEvent1OrEvent2OrderBySimilarityDesc(candidateId)
-            );
-        }
+        List<EventSimilarity> allSimilarities = eventSimilarityRepository
+                .findByEvent1InOrEvent2InOrderBySimilarityDesc(candidateIds);
 
         Map<Long, List<EventSimilarity>> similaritiesByCandidate = new HashMap<>();
         for (EventSimilarity sim : allSimilarities) {
@@ -105,7 +105,7 @@ public class RecommendationsService {
                         return recentInteractedEvents.contains(neighborId);
                     })
                     .sorted((s1, s2) -> Float.compare(s2.getSimilarity(), s1.getSimilarity()))
-                    .limit(20)
+                    .limit(MAX_NEIGHBORS_FOR_PREDICTION)
                     .toList();
 
             if (nearEvents.isEmpty()) {
